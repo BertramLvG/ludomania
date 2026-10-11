@@ -1,0 +1,15 @@
+{
+  "name": "ludomania",
+  "version": "0.1.0",
+  "description": "Online Danish Ludo",
+  "main": "src/engine.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test"
+  },
+  "license": "UNLICENSED",
+  "private": true,
+  "dependencies": {
+    "ws": "^8.22.0"
+  }
+}

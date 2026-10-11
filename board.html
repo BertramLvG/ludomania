@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Ludomania board</title>
+<style>
+  body { font-family: system-ui, sans-serif; margin: 16px; background: #fff; color: #222; }
+  svg { max-width: 720px; width: 100%; height: auto; }
+  text { font-size: 11px; fill: #222; }
+  .big { font-size: 14px; font-weight: 600; }
+</style>
+</head>
+<body>
+<svg id="b" viewBox="0 0 680 700"></svg>
+<script>
+var C = 40, ox = 40, oy = 30;
+var L = 'ABCDEFGHIJKLMNO';
+function nm(x, y) { return L[x] + (y + 1); }
+
+var ring = [], i;
+function add(x, y) { ring.push([x, y]); }
+for (i = 5; i >= 0; i--) add(6, i); add(7, 0); for (i = 0; i <= 5; i++) add(8, i);
+for (i = 9; i <= 14; i++) add(i, 6); add(14, 7); for (i = 14; i >= 9; i--) add(i, 8);
+for (i = 9; i <= 14; i++) add(8, i); add(7, 14); for (i = 14; i >= 9; i--) add(6, i);
+for (i = 5; i >= 0; i--) add(i, 8); add(0, 7); for (i = 0; i <= 5; i++) add(i, 6);
+
+var cols = {
+  red:    { s: [1, 6],  fill: '#f7c1c1', stroke: '#a32d2d', fin: [[1,7],[2,7],[3,7],[4,7],[5,7]],     yard: [0, 0] },
+  green:  { s: [8, 1],  fill: '#c0dd97', stroke: '#3b6d11', fin: [[7,1],[7,2],[7,3],[7,4],[7,5]],     yard: [9, 0] },
+  yellow: { s: [13, 8], fill: '#fac775', stroke: '#854f0b', fin: [[13,7],[12,7],[11,7],[10,7],[9,7]], yard: [9, 9] },
+  blue:   { s: [6, 13], fill: '#b5d4f4', stroke: '#185fa5', fin: [[7,13],[7,12],[7,11],[7,10],[7,9]], yard: [0, 9] }
+};
+
+function idx(p) { for (var k = 0; k < 52; k++) if (ring[k][0] == p[0] && ring[k][1] == p[1]) return k; }
+var info = {};
+Object.keys(cols).forEach(function (k) {
+  var c = cols[k], si = idx(c.s);
+  info[ring[si].join()] = { t: 'start', c: c };
+});
+Object.keys(cols).forEach(function (k) {
+  var si = idx(cols[k].s);
+  var g = ring[(si + 47) % 52].join();
+  if (!info[g]) info[g] = { t: 'globe' };
+  info[ring[(si + 5) % 52].join()] = { t: 'star' };
+  info[ring[(si + 50) % 52].join()] = { t: 'star' };
+});
+
+function star(cx, cy) {
+  var p = [];
+  for (var j = 0; j < 10; j++) {
+    var r = j % 2 ? 3.6 : 8.5, a = -Math.PI / 2 + j * Math.PI / 5;
+    p.push((cx + r * Math.cos(a)).toFixed(1) + ',' + (cy + r * Math.sin(a)).toFixed(1));
+  }
+  return '<polygon points="' + p.join(' ') + '" fill="#fff" stroke="#222" stroke-width="1.2"/>';
+}
+function globe(cx, cy, filled) {
+  return '<circle cx="' + cx + '" cy="' + cy + '" r="7.5" fill="' + (filled ? '#222' : '#fff') + '" stroke="#222" stroke-width="1.2"/>';
+}
+var joined = { '5,6': 1, '6,5': 1, '8,5': 1, '9,6': 1, '9,8': 1, '8,9': 1, '5,8': 1, '6,9': 1 };
+function cell(x, y, fill, stroke, sym) {
+  var px = ox + x * C, py = oy + y * C;
+  return (joined[x + ',' + y] ? '' : '<rect x="' + px + '" y="' + py + '" width="' + C + '" height="' + C + '" fill="' + fill + '" stroke="' + stroke + '" stroke-width="0.8"/>') +
+    (sym || '') +
+    '<text x="' + (px + C / 2) + '" y="' + (py + 31) + '" text-anchor="middle" dominant-baseline="central">' + nm(x, y) + '</text>';
+}
+
+var out = '';
+Object.keys(cols).forEach(function (k) {
+  var c = cols[k];
+  out += '<rect x="' + (ox + c.yard[0] * C) + '" y="' + (oy + c.yard[1] * C) + '" width="' + 6 * C + '" height="' + 6 * C +
+    '" rx="8" fill="' + c.fill + '" fill-opacity="0.5" stroke="' + c.stroke + '" stroke-width="0.8"/>' +
+    '<text class="big" x="' + (ox + c.yard[0] * C + 3 * C) + '" y="' + (oy + c.yard[1] * C + 3 * C) + '" text-anchor="middle">' + k + ' yard</text>';
+});
+var E = 14;
+[[5, 6, 6, 5, 6, 6], [9, 6, 8, 5, 8, 6], [9, 8, 8, 9, 8, 8], [5, 8, 6, 9, 6, 8]].forEach(function (q) {
+  var hx = q[0], hy = q[1], vx = q[2], vy = q[3], qx = q[4], qy = q[5];
+  var dh = qx > hx ? 1 : -1, dv = qy > vy ? 1 : -1;
+  var xe = (dh > 0 ? qx : qx + 1) * C + ox, ye = (dv > 0 ? qy : qy + 1) * C + oy;
+  var hfar = (dh > 0 ? hx : hx + 1) * C + ox, vfar = ye - dv * C;
+  var xo = xe + dh * C, yo = ye + dv * C;
+  var pts = [[hfar, ye], [xe, ye], [xe, vfar], [xo, vfar], [xo, ye + dv * E], [xe + dh * E, ye + dv * E], [xe + dh * E, yo], [hfar, yo]];
+  out += '<polygon points="' + pts.map(function (a) { return a.join(','); }).join(' ') + '" fill="#f5f4ee" stroke="#888" stroke-width="0.8"/>' +
+    '<line x1="' + xe + '" y1="' + ye + '" x2="' + (xe + dh * E) + '" y2="' + (ye + dv * E) + '" stroke="#888" stroke-width="0.8"/>';
+});
+ring.forEach(function (p) {
+  var inf = info[p.join()], fill = '#f5f4ee', stroke = '#888', sym = '';
+  var cx = ox + p[0] * C + C / 2, cy = oy + p[1] * C + 13;
+  if (inf) {
+    if (inf.t == 'start') { fill = inf.c.fill; stroke = inf.c.stroke; sym = globe(cx, cy, true); }
+    else if (inf.t == 'globe') sym = globe(cx, cy, false);
+    else sym = star(cx, cy);
+  }
+  out += cell(p[0], p[1], fill, stroke, sym);
+});
+Object.keys(cols).forEach(function (k) {
+  cols[k].fin.forEach(function (p) { out += cell(p[0], p[1], cols[k].fill, cols[k].stroke, ''); });
+});
+out += '<circle cx="' + (ox + 7.5 * C) + '" cy="' + (oy + 7.5 * C) + '" r="' + 1.5 * C + '" fill="#d3d1c7" stroke="#5f5e5a" stroke-width="0.8"/>' +
+  '<text class="big" x="' + (ox + 7.5 * C) + '" y="' + (oy + 7.5 * C - 8) + '" text-anchor="middle">Centre</text>' +
+  '<text x="' + (ox + 7.5 * C) + '" y="' + (oy + 7.5 * C + 10) + '" text-anchor="middle">H8</text>';
+for (i = 0; i < 15; i++) {
+  out += '<text x="' + (ox + i * C + C / 2) + '" y="' + (oy - 12) + '" text-anchor="middle" dominant-baseline="central">' + L[i] + '</text>';
+  out += '<text x="' + (ox - 8) + '" y="' + (oy + i * C + C / 2) + '" text-anchor="end" dominant-baseline="central">' + (i + 1) + '</text>';
+}
+var ly = oy + 15 * C + 26;
+out += globe(56, ly, true) + '<text x="70" y="' + ly + '" dominant-baseline="central">Start globe</text>' +
+  globe(176, ly, false) + '<text x="190" y="' + ly + '" dominant-baseline="central">Globe</text>' +
+  star(262, ly) + '<text x="276" y="' + ly + '" dominant-baseline="central">Star</text>' +
+  '<text x="340" y="' + ly + '" dominant-baseline="central">Coloured = finish column. Track runs clockwise.</text>';
+document.getElementById('b').innerHTML = out;
+</script>
+</body>
+</html>

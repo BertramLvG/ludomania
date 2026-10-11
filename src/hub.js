@@ -1,0 +1,204 @@
+'use strict';
+
+const crypto = require('node:crypto');
+const { createGame, currentColor, roll, move } = require('./engine');
+const { chooseMove } = require('./bot');
+
+const CODE_LETTERS = 'ABCDEFGHJKLMNPQRSTUVWXYZ'; // no I or O
+const SEATS = { 2: ['red', 'yellow'], 3: ['red', 'green', 'yellow'], 4: ['red', 'green', 'yellow', 'blue'] };
+const MAX_PLAYERS = 4;
+const REJOIN_MS = 60 * 1000;
+const BOT_DELAY_MS = 900;
+
+const secureRng = () => crypto.randomInt(0, 1e9) / 1e9;
+
+function publicState(room) {
+  const s = room.state;
+  const names = {};
+  const away = [];
+  room.players.forEach((p) => {
+    if (!p.color) return;
+    names[p.color] = p.name;
+    if (p.gone && !room.bots.has(p.color)) away.push(p.color);
+  });
+  return {
+    colors: s.colors, tokens: s.tokens, turn: s.turn, phase: s.phase,
+    face: s.face, moves: s.moves, winner: s.winner, bots: [...room.bots], away, names,
+  };
+}
+
+// Connection-independent game hub: holds rooms and handles client messages.
+// `send(obj)` is supplied per connection, so this works with real sockets or in tests.
+// A player who disconnects mid-game has `rejoinMs` to come back with their secret token.
+// After that a bot plays their seat, taking a move every `botDelayMs`.
+function createHub({
+  rejoinMs = REJOIN_MS, setTimer = setTimeout, clearTimer = clearTimeout,
+  botDelayMs = BOT_DELAY_MS, setBotTimer = setTimeout,
+} = {}) {
+  const rooms = new Map();
+  const conns = new Map(); // id -> connection record
+  let nextId = 1;
+
+  function newCode() {
+    for (;;) {
+      let code = '';
+      for (let i = 0; i < 4; i++) code += CODE_LETTERS[crypto.randomInt(0, CODE_LETTERS.length)];
+      if (!rooms.has(code)) return code;
+    }
+  }
+
+  const sendTo = (player, msg) => { try { if (!player.gone) player.send(msg); } catch { /* connection gone */ } };
+  const broadcast = (room, msg) => room.players.forEach((p) => sendTo(p, msg));
+  const lobbyMsg = (room) => ({
+    type: 'lobby', code: room.code,
+    players: room.players.map((p) => ({ name: p.name, host: p === room.host })),
+  });
+  const stateMsg = (room, events = []) => ({ type: 'state', state: publicState(room), events });
+
+  function fail(conn, message) { sendTo(conn, { type: 'error', message }); }
+
+  function cleanName(name) {
+    const n = String(name || '').trim().slice(0, 20);
+    return n || 'Player';
+  }
+
+  function join(conn, room, name) {
+    if (conn.room) return fail(conn, 'Already in a room');
+    if (room.state) return fail(conn, 'Game already started');
+    if (room.players.length >= MAX_PLAYERS) return fail(conn, 'Room is full');
+    conn.room = room;
+    conn.name = cleanName(name);
+    room.players.push(conn);
+    if (!room.host) room.host = conn;
+    sendTo(conn, { type: 'joined', code: room.code });
+    broadcast(room, lobbyMsg(room));
+  }
+
+  function scheduleBot(room) {
+    if (room.botTimer || !room.state || room.state.winner) return;
+    if (!room.bots.has(currentColor(room.state))) return;
+    room.botTimer = setBotTimer(() => { room.botTimer = null; botStep(room); }, botDelayMs);
+  }
+
+  function botStep(room) {
+    const s = room.state;
+    if (!rooms.has(room.code) || s.winner || !room.bots.has(currentColor(s))) return;
+    const result = s.phase === 'roll' ? roll(s) : move(s, chooseMove(s));
+    room.state = result.state;
+    broadcast(room, stateMsg(room, result.events));
+    scheduleBot(room);
+  }
+
+  // The absent player ran out of time: a bot takes over their seat for the rest of the game.
+  function giveUp(room, player) {
+    player.timer = null;
+    if (!rooms.has(room.code) || !player.gone || room.bots.has(player.color)) return;
+    // nobody is connected and nobody still has time to return: drop the room
+    if (room.players.every((p) => p.gone && !p.timer)) { rooms.delete(room.code); return; }
+    room.bots.add(player.color);
+    broadcast(room, stateMsg(room, [{ type: 'bot', color: player.color }]));
+    scheduleBot(room);
+  }
+
+  const handlers = {
+    create(conn, msg) {
+      const room = { code: newCode(), players: [], host: null, state: null, bots: new Set(), botTimer: null };
+      rooms.set(room.code, room);
+      join(conn, room, msg.name);
+    },
+
+    join(conn, msg) {
+      const room = rooms.get(String(msg.code || '').toUpperCase());
+      if (!room) return fail(conn, 'No room with that code');
+      join(conn, room, msg.name);
+    },
+
+    start(conn) {
+      const room = conn.room;
+      if (!room) return fail(conn, 'Not in a room');
+      if (room.host !== conn) return fail(conn, 'Only the host can start');
+      if (room.state) return fail(conn, 'Game already started');
+      if (room.players.length < 2) return fail(conn, 'Need at least 2 players');
+      const seats = SEATS[room.players.length];
+      room.players.forEach((p, i) => {
+        p.color = seats[i];
+        p.secret = crypto.randomBytes(16).toString('hex');
+      });
+      room.state = createGame(seats, secureRng);
+      room.players.forEach((p) => sendTo(p, { type: 'started', you: p.color, secret: p.secret }));
+      broadcast(room, stateMsg(room));
+    },
+
+    rejoin(conn, msg) {
+      if (conn.room) return fail(conn, 'Already in a room');
+      const room = rooms.get(String(msg.code || '').toUpperCase());
+      const old = room && room.state && room.players.find((p) => p.secret && p.secret === msg.secret);
+      if (!old || !old.gone || room.bots.has(old.color)) return fail(conn, 'Cannot rejoin this game');
+      if (old.timer) { clearTimer(old.timer); old.timer = null; }
+      // the new connection takes over the old player's seat
+      Object.assign(conn, { room, color: old.color, name: old.name, secret: old.secret, gone: false });
+      room.players[room.players.indexOf(old)] = conn;
+      if (room.host === old) room.host = conn;
+      sendTo(conn, { type: 'started', you: conn.color, secret: conn.secret });
+      broadcast(room, stateMsg(room));
+    },
+
+    roll(conn) {
+      const room = conn.room;
+      if (!room || !room.state) return fail(conn, 'No game in progress');
+      if (currentColor(room.state) !== conn.color) return fail(conn, 'Not your turn');
+      const result = roll(room.state);
+      room.state = result.state;
+      broadcast(room, stateMsg(room, result.events));
+      scheduleBot(room);
+    },
+
+    move(conn, msg) {
+      const room = conn.room;
+      if (!room || !room.state) return fail(conn, 'No game in progress');
+      if (currentColor(room.state) !== conn.color) return fail(conn, 'Not your turn');
+      const result = move(room.state, { token: msg.token, kind: msg.kind });
+      room.state = result.state;
+      broadcast(room, stateMsg(room, result.events));
+      scheduleBot(room);
+    },
+  };
+
+  return {
+    connect(send) {
+      const id = nextId++;
+      conns.set(id, { send, room: null, color: null, name: null, gone: false });
+      return id;
+    },
+
+    handle(id, msg) {
+      const conn = conns.get(id);
+      if (!conn || !msg || typeof msg !== 'object') return;
+      const handler = Object.prototype.hasOwnProperty.call(handlers, msg.type) ? handlers[msg.type] : null;
+      if (!handler) return fail(conn, 'Unknown message');
+      try { handler(conn, msg); } catch (err) { fail(conn, err.message); }
+    },
+
+    disconnect(id) {
+      const conn = conns.get(id);
+      conns.delete(id);
+      if (!conn || !conn.room) return;
+      const room = conn.room;
+      if (!room.state) {
+        room.players = room.players.filter((p) => p !== conn);
+        if (room.players.length === 0) { rooms.delete(room.code); return; }
+        if (room.host === conn) room.host = room.players[0];
+        broadcast(room, lobbyMsg(room));
+        return;
+      }
+      conn.gone = true;
+      // the room is kept until every absent player has either returned or run out of time
+      conn.timer = setTimer(() => giveUp(room, conn), rejoinMs);
+      broadcast(room, stateMsg(room));
+    },
+
+    roomCount: () => rooms.size,
+  };
+}
+
+module.exports = { createHub, publicState, REJOIN_MS };
