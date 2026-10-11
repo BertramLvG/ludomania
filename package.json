@@ -2,7 +2,10 @@
   "name": "ludomania",
   "version": "0.1.0",
   "description": "Online Danish Ludo",
-  "main": "src/engine.js",
+  "main": "src/server.js",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "start": "node src/server.js",
     "test": "node --test"
