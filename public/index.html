@@ -36,12 +36,18 @@
       <input id="code" placeholder="Room code" maxlength="4" size="6">
       <button id="join">Join game</button>
     </div>
+    <div class="row"><button id="solo">Play solo against 3 bots</button></div>
   </section>
 
   <section id="lobby" class="card hidden">
     <div>Room code: <strong id="roomCode"></strong> (share it with your friends)</div>
     <div id="lobbyPlayers" class="row"></div>
-    <div class="row"><button id="start">Start game</button><span id="lobbyHint"></span></div>
+    <div class="row">
+      <button id="addBot">Add bot</button>
+      <button id="removeBot">Remove bot</button>
+      <button id="start">Start game</button>
+    </div>
+    <div id="lobbyHint"></div>
   </section>
 
   <section id="game" class="hidden">

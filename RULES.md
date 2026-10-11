@@ -38,7 +38,7 @@ If no legal move exists, the turn is skipped.
 
 ## Disconnects
 - A player who loses connection (or reloads the page) can rejoin their seat within 60 seconds. The game waits for them if it is their turn.
-- After 60 seconds a bot plays that seat for the rest of the game, and the player can no longer rejoin. The bot is a placeholder that picks the first legal move. Better bot behaviour comes later.
+- After 60 seconds a bot plays that seat for the rest of the game, and the player can no longer rejoin. Bots also fill seats when the host adds them in the lobby, so a game can be played solo (1 human plus up to 3 bots). A bot scores each legal move: it values captures, leaving the yard, reaching home, safe globes and escaping opponents in range, and avoids landing on defended squares.
 
 ## Open questions
 - None at the moment.

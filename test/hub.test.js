@@ -43,11 +43,11 @@ test('only the host can start, and it needs two players', () => {
   const a = client(hub);
   a.send({ type: 'create', name: 'Anna' });
   a.send({ type: 'start' });
-  assert.equal(a.last('error').message, 'Need at least 2 players');
+  assert.match(a.last('error').message, /^Need at least 2 players/);
   const b = client(hub);
   b.send({ type: 'join', code: a.last('joined').code, name: 'Ben' });
   b.send({ type: 'start' });
-  assert.equal(b.last('error').message, 'Only the host can start');
+  assert.equal(b.last('error').message, 'Only the host can do that');
 });
 
 test('two players get red and yellow, and the state is broadcast', () => {
@@ -193,6 +193,58 @@ test('a room is removed once everyone has left and run out of time', () => {
   assert.equal(hub.roomCount(), 1);
   clients.forEach((c) => c.leave());
   assert.equal(hub.roomCount(), 1); // still waiting for possible rejoins
+  fireAll();
+  assert.equal(hub.roomCount(), 0);
+});
+
+test('the host can add bots and play solo; bots take their turns', () => {
+  const { hub, runBots } = manualHub();
+  const a = client(hub);
+  a.send({ type: 'create', name: 'Anna' });
+  a.send({ type: 'addBot' });
+  a.send({ type: 'addBot' });
+  a.send({ type: 'addBot' });
+  assert.equal(a.last('lobby').bots, 3);
+  a.send({ type: 'addBot' });
+  assert.equal(a.last('error').message, 'Room is full');
+  a.send({ type: 'removeBot' });
+  a.send({ type: 'start' });
+  const state = a.last('state').state;
+  assert.deepEqual(state.colors, ['red', 'green', 'yellow']);
+  assert.deepEqual(state.bots, ['green', 'yellow']);
+  assert.deepEqual(state.names, { green: 'Bot 1', yellow: 'Bot 2', red: 'Anna' });
+
+  // play: the human rolls, the bots answer until it is the human's turn again
+  for (let i = 0; i < 20; i++) {
+    const s = a.last('state').state;
+    if (s.colors[s.turn] !== 'red') { runBots(); continue; }
+    if (s.phase === 'roll') a.send({ type: 'roll' });
+    else a.send({ type: 'move', token: s.moves[0].token, kind: s.moves[0].kind });
+  }
+  assert.ok(a.inbox.some((m) => m.type === 'state' && m.events.some((e) => e.color === 'green')));
+});
+
+test('only the host can add bots, and not after the game has started', () => {
+  const { hub } = manualHub();
+  const a = client(hub);
+  a.send({ type: 'create', name: 'Anna' });
+  const b = client(hub);
+  b.send({ type: 'join', code: a.last('joined').code, name: 'Ben' });
+  b.send({ type: 'addBot' });
+  assert.equal(b.last('error').message, 'Only the host can do that');
+  a.send({ type: 'start' });
+  a.send({ type: 'addBot' });
+  assert.equal(a.last('error').message, 'Game already started');
+});
+
+test('a solo game is removed when the only human leaves and the minute is up', () => {
+  const { hub, fireAll } = manualHub();
+  const a = client(hub);
+  a.send({ type: 'create', name: 'Anna' });
+  a.send({ type: 'addBot' });
+  a.send({ type: 'start' });
+  a.leave();
+  assert.equal(hub.roomCount(), 1);
   fireAll();
   assert.equal(hub.roomCount(), 0);
 });

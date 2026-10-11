@@ -57,6 +57,14 @@
     connect(() => send({ type: 'join', code, name: name() }));
   };
   $('start').onclick = () => send({ type: 'start' });
+  $('addBot').onclick = () => send({ type: 'addBot' });
+  $('removeBot').onclick = () => send({ type: 'removeBot' });
+  let soloPending = false;
+  $('solo').onclick = () => {
+    setError('');
+    soloPending = true;
+    connect(() => send({ type: 'create', name: name() }));
+  };
   $('roll').onclick = () => send({ type: 'roll' });
 
   function describe(ev, names) {
@@ -80,7 +88,16 @@
         setError(msg.message);
         if (msg.message === 'Cannot rejoin this game') { clearSession(); clearTimeout(retryTimer); show('menu'); }
         break;
-      case 'joined': roomCode = msg.code; $('roomCode').textContent = msg.code; show('lobby'); break;
+      case 'joined':
+        roomCode = msg.code;
+        $('roomCode').textContent = msg.code;
+        show('lobby');
+        if (soloPending) {
+          soloPending = false;
+          for (let i = 0; i < 3; i++) send({ type: 'addBot' });
+          send({ type: 'start' });
+        }
+        break;
       case 'lobby': renderLobby(msg); break;
       case 'started':
         me = msg.you;
@@ -101,8 +118,15 @@
       s.textContent = p.name + (p.host ? ' (host)' : '');
       $('lobbyPlayers').appendChild(s);
     });
-    // the server enforces that only the host can start
-    $('lobbyHint').textContent = msg.players.length < 2 ? 'Waiting for at least one more player' : 'Only the host can start the game';
+    for (let i = 0; i < msg.bots; i++) {
+      const s = document.createElement('span');
+      s.textContent = 'Bot ' + (i + 1);
+      $('lobbyPlayers').appendChild(s);
+    }
+    // the server enforces that only the host can add bots and start
+    $('lobbyHint').textContent = msg.players.length + msg.bots < 2
+      ? 'Waiting for another player, or add a bot to play solo'
+      : 'The host can add bots and start the game';
   }
 
   function renderLog() {

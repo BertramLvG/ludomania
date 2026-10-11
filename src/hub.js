@@ -14,7 +14,7 @@ const secureRng = () => crypto.randomInt(0, 1e9) / 1e9;
 
 function publicState(room) {
   const s = room.state;
-  const names = {};
+  const names = { ...room.botNames };
   const away = [];
   room.players.forEach((p) => {
     if (!p.color) return;
@@ -52,6 +52,7 @@ function createHub({
   const lobbyMsg = (room) => ({
     type: 'lobby', code: room.code,
     players: room.players.map((p) => ({ name: p.name, host: p === room.host })),
+    bots: room.botCount,
   });
   const stateMsg = (room, events = []) => ({ type: 'state', state: publicState(room), events });
 
@@ -65,7 +66,7 @@ function createHub({
   function join(conn, room, name) {
     if (conn.room) return fail(conn, 'Already in a room');
     if (room.state) return fail(conn, 'Game already started');
-    if (room.players.length >= MAX_PLAYERS) return fail(conn, 'Room is full');
+    if (room.players.length + room.botCount >= MAX_PLAYERS) return fail(conn, 'Room is full');
     conn.room = room;
     conn.name = cleanName(name);
     room.players.push(conn);
@@ -100,9 +101,21 @@ function createHub({
     scheduleBot(room);
   }
 
+  // The room of a host who is still in the lobby; otherwise tells the player why not and returns null.
+  function lobbyHost(conn) {
+    const room = conn.room;
+    if (!room) { fail(conn, 'Not in a room'); return null; }
+    if (room.host !== conn) { fail(conn, 'Only the host can do that'); return null; }
+    if (room.state) { fail(conn, 'Game already started'); return null; }
+    return room;
+  }
+
   const handlers = {
     create(conn, msg) {
-      const room = { code: newCode(), players: [], host: null, state: null, bots: new Set(), botTimer: null };
+      const room = {
+        code: newCode(), players: [], host: null, state: null,
+        botCount: 0, bots: new Set(), botNames: {}, botTimer: null,
+      };
       rooms.set(room.code, room);
       join(conn, room, msg.name);
     },
@@ -113,20 +126,40 @@ function createHub({
       join(conn, room, msg.name);
     },
 
+    addBot(conn) {
+      const room = lobbyHost(conn);
+      if (!room) return;
+      if (room.players.length + room.botCount >= MAX_PLAYERS) return fail(conn, 'Room is full');
+      room.botCount++;
+      broadcast(room, lobbyMsg(room));
+    },
+
+    removeBot(conn) {
+      const room = lobbyHost(conn);
+      if (!room) return;
+      if (room.botCount > 0) room.botCount--;
+      broadcast(room, lobbyMsg(room));
+    },
+
     start(conn) {
-      const room = conn.room;
-      if (!room) return fail(conn, 'Not in a room');
-      if (room.host !== conn) return fail(conn, 'Only the host can start');
-      if (room.state) return fail(conn, 'Game already started');
-      if (room.players.length < 2) return fail(conn, 'Need at least 2 players');
-      const seats = SEATS[room.players.length];
+      const room = lobbyHost(conn);
+      if (!room) return;
+      const total = room.players.length + room.botCount;
+      if (total < 2) return fail(conn, 'Need at least 2 players (add a bot to play solo)');
+      const seats = SEATS[total];
       room.players.forEach((p, i) => {
         p.color = seats[i];
         p.secret = crypto.randomBytes(16).toString('hex');
       });
+      for (let i = 0; i < room.botCount; i++) {
+        const color = seats[room.players.length + i];
+        room.bots.add(color);
+        room.botNames[color] = 'Bot ' + (i + 1);
+      }
       room.state = createGame(seats, secureRng);
       room.players.forEach((p) => sendTo(p, { type: 'started', you: p.color, secret: p.secret }));
       broadcast(room, stateMsg(room));
+      scheduleBot(room);
     },
 
     rejoin(conn, msg) {
