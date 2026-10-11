@@ -111,6 +111,38 @@ test('star moves a track token to the next star and gives no extra roll', () => 
   assert.equal(m.state.turn, 1);
 });
 
+test('landing on a star with a normal roll carries the token to the next star', () => {
+  const g = game({ red: [3, YARD, YARD, YARD] });
+  const m = legalMoves(g, 2)[0]; // p3 + 2 = p5, red's own star at G6
+  assert.equal(m.via, 5);
+  assert.equal(board.RING[ringIndex('red', m.via)], 'G6');
+  assert.equal(board.RING[ringIndex('red', m.to)], 'H1'); // the next star on the track
+  const r = roll(g, 2);
+  const played = move(r.state, r.state.moves[0]);
+  assert.equal(played.state.tokens.red[0], m.to);
+  assert.equal(played.events[0].via, 5);
+});
+
+test('star and globus moves do not carry on again, and the last star has nowhere to go', () => {
+  // star move from p0 lands on p5 and stays there
+  const g = game({ red: [0, YARD, YARD, YARD] });
+  assert.equal(legalMoves(g, 'star')[0].to, 5);
+  // the last star (p50, A8) is the end of the track: a normal roll onto it stays put
+  const h = game({ red: [48, YARD, YARD, YARD] });
+  const m = legalMoves(h, 2)[0];
+  assert.equal(m.to, 50);
+  assert.equal(m.via, undefined);
+});
+
+test('a capture happens at the star the token is carried to', () => {
+  const g = game({ red: [3, YARD, YARD, YARD] });
+  g.tokens.green = [greenAt(11), YARD, YARD, YARD]; // a lone green token on the destination star
+  const r = roll(g, 2);
+  const played = move(r.state, r.state.moves[0]);
+  assert.equal(played.state.tokens.red[0], 11);
+  assert.equal(played.state.tokens.green[0], YARD);
+});
+
 test('star cannot be used by tokens in the yard or the finish column', () => {
   const g = game({ red: [YARD, 52, HOME, YARD] });
   assert.equal(legalMoves(g, 'star').length, 0);

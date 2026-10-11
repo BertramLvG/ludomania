@@ -20,6 +20,7 @@ If no legal move exists, the turn is skipped.
 ## Stars
 - Located 5 squares after each colour's start square, and on the last track square before each colour's finish column.
 - Tokens in the yard or in their finish column can't use a star roll.
+- Landing on a star with a normal roll (1, 2, 4 or 6) carries the token on to the next star ahead. This does not happen after a star or globus move, and the token stays put if no star is left ahead (the last star before the finish column). Captures are decided at the star the token ends on.
 
 ## Globes
 - Each colour's start square is a globe, and there is another globe 5 squares before each start square (8 in total).

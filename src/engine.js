@@ -70,7 +70,15 @@ function legalMoves(state, face) {
   if (typeof face === 'number') {
     tokens.forEach((p, token) => {
       if (p === YARD || p === HOME) return;
-      moves.push({ token, from: p, to: numberMove(p, face), kind: 'step' });
+      let to = numberMove(p, face);
+      let via;
+      // Landing on a star with a normal roll carries the token on to the next star
+      // (not for star or globus moves, and not when there is no star left ahead).
+      if (isOnTrack(to) && STARS.has(ringIndex(color, to))) {
+        const next = nextInSet(color, to, STARS);
+        if (next !== null) { via = to; to = next; }
+      }
+      moves.push({ token, from: p, to, via, kind: 'step' });
     });
   } else if (face === 'star') {
     tokens.forEach((p, token) => {
@@ -93,7 +101,7 @@ function legalMoves(state, face) {
 function resolveMove(state, move) {
   const color = currentColor(state);
   const tokens = state.tokens[color];
-  const events = [{ type: 'move', color, token: move.token, from: move.from, to: move.to }];
+  const events = [{ type: 'move', color, token: move.token, from: move.from, to: move.to, via: move.via }];
   tokens[move.token] = move.to;
   if (!isOnTrack(move.to)) return events;
 
