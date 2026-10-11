@@ -1,68 +1,156 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="night">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Ludomania</title>
-<style>
-  body { font-family: system-ui, sans-serif; margin: 0; background: #faf9f5; color: #222; }
-  main { max-width: 760px; margin: 0 auto; padding: 16px; }
-  h1 { font-size: 24px; margin: 8px 0 16px; }
-  .card { background: #fff; border: 1px solid #ddd; border-radius: 12px; padding: 16px; margin-bottom: 16px; }
-  input, button { font: inherit; padding: 8px 12px; border-radius: 8px; border: 1px solid #bbb; }
-  button { background: #222; color: #fff; border-color: #222; cursor: pointer; }
-  button:disabled { background: #ccc; border-color: #ccc; cursor: default; }
-  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 8px 0; }
-  .hidden { display: none; }
-  #error { color: #a32d2d; min-height: 1.4em; }
-  svg { width: 100%; height: auto; display: block; }
-  .coord { font-size: 9px; fill: #555; }
-  .movable { cursor: pointer; }
-  #die { font-size: 20px; font-weight: 600; min-width: 90px; text-align: center; padding: 6px 12px; border: 2px solid #222; border-radius: 10px; background: #fff; }
-  #log { font-size: 14px; color: #444; margin: 0; padding-left: 18px; }
-  .players span { display: inline-block; margin-right: 12px; }
-  .swatch { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 4px; vertical-align: middle; }
-</style>
+<title>LudoMania</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css">
 </head>
 <body>
-<main>
-  <h1>Ludomania</h1>
-  <div id="error"></div>
+<div class="app">
 
-  <section id="menu" class="card">
-    <div class="row"><input id="name" placeholder="Your name" maxlength="20"></div>
-    <div class="row">
-      <button id="create">Create game</button>
-      <input id="code" placeholder="Room code" maxlength="4" size="6">
-      <button id="join">Join game</button>
+  <header class="header">
+    <div class="brand">
+      <span class="brand-name">LudoMania</span>
+      <span class="brand-dots" aria-hidden="true">
+        <span style="background: var(--red)"></span>
+        <span style="background: var(--green)"></span>
+        <span style="background: var(--yellow)"></span>
+        <span style="background: var(--blue)"></span>
+      </span>
     </div>
-    <div class="row"><button id="solo">Play solo against 3 bots</button></div>
-  </section>
+    <nav class="nav" aria-label="Game">
+      <button class="theme-switch" id="themeSwitch" role="switch" aria-checked="true" aria-label="Night mode">
+        <span id="themeLabel">Night</span>
+        <span class="track">
+          <svg class="track-icon sun" viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+          <svg class="track-icon moon" viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>
+          <span class="knob">
+            <svg class="knob-moon" width="16" height="16" viewBox="0 0 24 24" fill="#C9D3FF" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>
+            <svg class="knob-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#E0A300" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4" fill="#F6BE1A"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+          </span>
+        </span>
+      </button>
+      <button class="nav-link" id="rulesBtn" type="button">Rules</button>
+      <button class="nav-link hidden" id="leaveBtn" type="button">Leave game</button>
+    </nav>
+  </header>
 
-  <section id="lobby" class="card hidden">
-    <div>Room code: <strong id="roomCode"></strong> (share it with your friends)</div>
-    <div id="lobbyPlayers" class="row"></div>
-    <div class="row">
-      <button id="addBot">Add bot</button>
-      <button id="removeBot">Remove bot</button>
-      <button id="start">Start game</button>
-    </div>
-    <div id="lobbyHint"></div>
-  </section>
+  <p id="error" class="error" role="alert"></p>
 
-  <section id="game" class="hidden">
-    <div class="card">
-      <div id="players" class="players"></div>
-      <div class="row">
-        <button id="roll">Roll</button>
-        <div id="die">-</div>
-        <strong id="status"></strong>
+  <section id="menu" class="screen" aria-label="Start">
+    <div class="card screen-card">
+      <h1 class="screen-title">Play Ludo online</h1>
+      <div class="field">
+        <label for="name" class="eyebrow">Your name</label>
+        <input id="name" class="input" placeholder="Player" maxlength="20" autocomplete="nickname">
       </div>
-      <ul id="log"></ul>
+      <div class="row">
+        <button id="create" class="btn primary" type="button">Create game</button>
+      </div>
+      <div class="field">
+        <label for="code" class="eyebrow">Room code</label>
+        <div class="row">
+          <input id="code" class="input" placeholder="ABCD" maxlength="4" autocapitalize="characters" autocomplete="off">
+          <button id="join" class="btn" type="button">Join game</button>
+        </div>
+      </div>
+      <div class="row">
+        <button id="solo" class="btn" type="button">Play solo against 3 bots</button>
+      </div>
     </div>
-    <div class="card"><svg id="board" viewBox="0 0 680 640" role="img" aria-label="Ludo board"></svg></div>
   </section>
-</main>
+
+  <section id="lobby" class="screen hidden" aria-label="Lobby">
+    <div class="card screen-card">
+      <div>
+        <div class="eyebrow">Room code</div>
+        <div class="room-code" id="roomCode"></div>
+        <p class="hint">Share this code with your friends.</p>
+      </div>
+      <div id="lobbyPlayers" class="chips"></div>
+      <div class="row">
+        <button id="addBot" class="btn" type="button">Add bot</button>
+        <button id="removeBot" class="btn" type="button">Remove bot</button>
+        <button id="start" class="btn primary" type="button">Start game</button>
+      </div>
+      <p id="lobbyHint" class="hint"></p>
+    </div>
+  </section>
+
+  <main id="game" class="main hidden">
+    <section class="board-wrap" aria-label="Board">
+      <div class="board-frame">
+        <div class="board" id="board"></div>
+      </div>
+      <div class="legend" aria-label="Legend">
+        <span><svg class="l-star" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1 5.8L12 16.9 6.8 19.6l1-5.8-4.3-4.1 5.9-.8z"/></svg>Star</span>
+        <span><svg class="l-globe" viewBox="0 0 24 24" aria-hidden="true" id="legendGlobe"></svg>Globe (protects)</span>
+        <span>Coloured squares: start and finish lane</span>
+      </div>
+    </section>
+
+    <aside class="side" aria-label="Game panel">
+      <div class="card turn-card">
+        <div class="turn-head">
+          <div>
+            <div class="eyebrow">Now playing</div>
+            <div class="turn-name" id="turnName">-</div>
+          </div>
+          <span class="turn-swatch" id="turnSwatch"></span>
+        </div>
+        <div class="turn-row">
+          <div class="dice" id="dice" role="img" aria-label="Dice not rolled yet"></div>
+          <div class="roll-col">
+            <button class="roll-btn" id="roll" type="button">Roll</button>
+            <div class="status" id="status" aria-live="polite"></div>
+          </div>
+        </div>
+        <ul class="activity" id="log" aria-label="Recent moves"></ul>
+      </div>
+
+      <div class="card players" id="players" aria-label="Players"></div>
+    </aside>
+  </main>
+</div>
+
+<dialog id="rules" aria-labelledby="rulesTitle">
+  <div class="dialog-body">
+    <h2 id="rulesTitle">Rules</h2>
+    <p>Get all four of your tokens around the board and into the centre before anyone else.</p>
+    <h3>The die</h3>
+    <ul>
+      <li>1, 2, 4 and 6 move one token that many squares.</li>
+      <li>Globus brings a token out of the base onto your start globe, or moves a token to the next globe. You roll again.</li>
+      <li>Star moves a token on the track to the next star.</li>
+      <li>Landing on a star with a normal roll carries the token on to the next star.</li>
+    </ul>
+    <h3>Getting out</h3>
+    <ul>
+      <li>If all your remaining tokens are in the base, you get up to 3 rolls per turn to throw a globus.</li>
+      <li>Leaving the base onto your start globe sends any opponent standing there home.</li>
+    </ul>
+    <h3>Capturing</h3>
+    <ul>
+      <li>Landing alone on one opponent token sends it back to its base.</li>
+      <li>Two or more tokens of one colour on a square defend it. Land there and your token goes home.</li>
+      <li>Globes protect. Land on a globe with an opponent on it and your token goes home.</li>
+    </ul>
+    <h3>Finishing</h3>
+    <ul>
+      <li>You need the exact roll to reach the centre. Extra steps bounce back.</li>
+      <li>Only a globus gives another roll. Captures and reaching the centre do not.</li>
+    </ul>
+    <h3>Connection</h3>
+    <ul>
+      <li>If you drop out, you have 60 seconds to rejoin. After that a bot plays your seat.</li>
+    </ul>
+    <button class="btn primary" id="rulesClose" type="button">Close</button>
+  </div>
+</dialog>
+
 <script src="/board.js"></script>
 <script src="/boardview.js"></script>
 <script src="/app.js"></script>
