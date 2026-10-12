@@ -328,15 +328,21 @@
     else $('status').textContent = previewText(move);
 
     BoardView.render(s, movable, me, pickToken,
-      move ? { color: me, to: move.to, via: move.via } : null, selected);
+      move ? { color: me, to: move.to, via: move.via } : null, selected, confirmMove);
+  }
+
+  // Plays the previewed move. Used by the Confirm button and by clicking the highlighted square.
+  function confirmMove() {
+    if (!game || game.s.phase !== 'move') return;
+    const move = selected !== null ? game.movable.get(selected) : null;
+    if (move) send({ type: 'move', token: move.token, kind: move.kind });
   }
 
   // One button does both jobs: Roll in the roll phase, Confirm move in the move phase.
   $('roll').onclick = () => {
     if (!game) return;
     if (game.s.phase === 'roll') return send({ type: 'roll' });
-    const move = selected !== null ? game.movable.get(selected) : null;
-    if (move) send({ type: 'move', token: move.token, kind: move.kind });
+    confirmMove();
   };
 
   function renderPlayers(s, current) {

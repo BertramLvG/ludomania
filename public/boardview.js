@@ -106,7 +106,8 @@
 
   // movable: Map of token index -> move kind for my colour. onPick(token) is called when one is chosen.
   // selected: the token index being previewed. preview: { color, to, via } of that token's move, or null.
-  function render(state, movable, me, onPick, preview, selected) {
+  // onConfirm() is called when the highlighted destination square is clicked.
+  function render(state, movable, me, onPick, preview, selected, onConfirm) {
     // bases: a token waits in its slot; an empty slot means that token is out on the board
     COLORS.forEach((color) => {
       const playing = state.colors.includes(color);
@@ -212,9 +213,12 @@
       }
       const ds = targetSquare(preview.color, preview.to);
       if (ds) {
-        const dest = document.createElement('div');
+        const dest = document.createElement('button');
+        dest.type = 'button';
         dest.className = 'dest';
+        dest.setAttribute('aria-label', 'Move here');
         dest.innerHTML = '<span class="token ' + preview.color + '"></span>';
+        if (onConfirm) dest.onclick = onConfirm;
         place(dest, ds[0], ds[1]);
         tokenLayer.appendChild(dest);
       }
