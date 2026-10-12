@@ -89,7 +89,6 @@
   $('startBots').onclick = () => { $('startDialog').close(); send({ type: 'start', fillBots: true }); };
   $('startAsIs').onclick = () => { $('startDialog').close(); send({ type: 'start' }); };
   $('startCancel').onclick = () => $('startDialog').close();
-  $('roll').onclick = () => send({ type: 'roll' });
   let soloPending = false;
   $('solo').onclick = () => {
     setError('');
@@ -105,6 +104,8 @@
     if (ws) ws.close();
     ws = null; me = null; roomCode = null;
     log.length = 0;
+    resetRolls();
+    game = null; selected = null;
     setError('');
     show('menu');
   };
@@ -187,25 +188,70 @@
   // Pip indices on the 3x3 grid for each number; star and globus faces show an icon instead.
   const PIPS = { 1: [4], 2: [0, 8], 4: [0, 2, 6, 8], 6: [0, 2, 3, 5, 6, 8] };
   const diceEl = $('dice');
-  for (let i = 0; i < 9; i++) diceEl.appendChild(Object.assign(document.createElement('div'), { className: 'pip' }));
-  diceEl.insertAdjacentHTML('beforeend',
-    '<div class="dice-icon" aria-hidden="true">' +
-    '<svg class="d-star" viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1 5.8L12 16.9 6.8 19.6l1-5.8-4.3-4.1 5.9-.8z"/></svg>' +
-    '<svg class="d-globe" viewBox="0 0 24 24">' + BoardView.GLOBE_PATHS + '</svg></div>');
-  const iconStar = diceEl.querySelector('.d-star');
-  const iconGlobe = diceEl.querySelector('.d-globe');
   $('legendGlobe').innerHTML = BoardView.GLOBE_PATHS;
 
-  function showDie(face) {
+  // Adds the pips and the star/globus icons to an empty die element.
+  function buildDie(el) {
+    for (let i = 0; i < 9; i++) el.appendChild(Object.assign(document.createElement('div'), { className: 'pip' }));
+    el.insertAdjacentHTML('beforeend',
+      '<div class="dice-icon" aria-hidden="true">' +
+      '<svg class="d-star" viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1 5.8L12 16.9 6.8 19.6l1-5.8-4.3-4.1 5.9-.8z"/></svg>' +
+      '<svg class="d-globe" viewBox="0 0 24 24">' + BoardView.GLOBE_PATHS + '</svg></div>');
+  }
+
+  function setDie(el, face, label) {
     const isIcon = face === 'star' || face === 'globus';
-    diceEl.classList.toggle('icon', isIcon);
-    iconStar.style.display = face === 'star' ? 'block' : 'none';
-    iconGlobe.style.display = face === 'globus' ? 'block' : 'none';
-    [...diceEl.querySelectorAll('.pip')].forEach((pip, i) => {
+    el.classList.toggle('icon', isIcon);
+    el.querySelector('.d-star').style.display = face === 'star' ? 'block' : 'none';
+    el.querySelector('.d-globe').style.display = face === 'globus' ? 'block' : 'none';
+    el.querySelectorAll('.pip').forEach((pip, i) => {
       pip.classList.toggle('on', typeof face === 'number' && PIPS[face].includes(i));
     });
-    diceEl.setAttribute('aria-label', face === null ? 'Dice not rolled yet' : 'Dice showing ' + (FACE[face] || face));
+    el.setAttribute('aria-label', label || (face === null ? 'Dice not rolled yet' : 'Dice showing ' + (FACE[face] || face)));
   }
+
+  buildDie(diceEl);
+
+  /* ---------- Earlier rolls this turn ---------- */
+  // A player with only base tokens rolls up to 3 times. Each earlier roll shrinks into a small die
+  // beside the big one, so all rolls stay visible.
+  let earlier = [];        // faces rolled before the big die, in the same run of base rolls
+  let runColor = null;
+  let runOpen = false;     // true while the same player is still using their base re-rolls
+  let lastFace = null;
+
+  function trackRolls(events) {
+    let grew = false;
+    events.forEach((ev) => {
+      if (ev.type !== 'roll' && ev.type !== 'skip') return;
+      if (runOpen && ev.color === runColor) { earlier.push(lastFace); grew = true; } else earlier = [];
+      lastFace = ev.face;
+      runColor = ev.color;
+      runOpen = ev.type === 'skip' && ev.reroll === true;
+    });
+    return grew;
+  }
+
+  function renderTrail(animate) {
+    const box = $('trail');
+    box.textContent = '';
+    earlier.forEach((face, i) => {
+      const mini = document.createElement('div');
+      mini.className = 'dice mini' + (animate && i === earlier.length - 1 ? ' minimise' : '');
+      mini.setAttribute('role', 'img');
+      buildDie(mini);
+      setDie(mini, face, 'Roll ' + (i + 1) + ': ' + (FACE[face] || face));
+      box.appendChild(mini);
+    });
+    if (earlier.length) {
+      const note = document.createElement('span');
+      note.className = 'trail-note';
+      note.textContent = 'Earlier rolls';
+      box.appendChild(note);
+    }
+  }
+
+  function resetRolls() { earlier = []; runColor = null; runOpen = false; lastFace = null; renderTrail(false); }
 
   /* ---------- Game state ---------- */
   function applyState(msg) {
@@ -224,26 +270,74 @@
     const btn = $('roll');
     btn.style.background = 'var(--' + color + '-btn)';
     btn.style.color = 'var(--' + color + '-ink)';
-    btn.disabled = !(myTurn && s.phase === 'roll');
 
     if (msg.events.some((ev) => ev.type === 'roll' || ev.type === 'skip')) {
       diceEl.classList.remove('rolling'); void diceEl.offsetWidth; diceEl.classList.add('rolling');
     }
-    showDie(s.face);
+    const grew = trackRolls(msg.events);
+    renderTrail(grew);
+    setDie(diceEl, s.face);
 
-    if (s.winner) { $('status').textContent = ''; clearSession(); }
-    else if (!myTurn) $('status').textContent = s.names[color] + "'s turn";
-    else $('status').textContent = s.phase === 'roll' ? 'Your turn - tap Roll' : 'Pick a token to move';
-
+    if (s.winner) clearSession();
     renderPlayers(s, color);
 
-    // tokens the player can move now (token index -> kind)
-    const movable = new Map();
-    if (myTurn && s.phase === 'move') s.moves.forEach((m) => movable.set(m.token, m.kind));
-    BoardView.render(s, movable, me, (token) => {
-      send({ type: 'move', token, kind: movable.get(token) });
-    });
+    // The moves the player can make now (token index -> move). With only one choice it is pre-selected.
+    game = { s, myTurn, movable: new Map() };
+    if (myTurn && s.phase === 'move') s.moves.forEach((m) => { if (!game.movable.has(m.token)) game.movable.set(m.token, m); });
+    selected = game.movable.size === 1 ? [...game.movable.keys()][0] : null;
+    redraw();
   }
+
+  /* ---------- Choosing a move: pick a token, see where it goes, then confirm ---------- */
+  let game = null;       // { s, myTurn, movable } for the latest state
+  let selected = null;   // token index being previewed
+
+  function pickToken(token) {
+    selected = selected === token ? null : token;
+    redraw();
+  }
+
+  function previewText(m) {
+    let text = m.kind === 'enter' ? 'Bring this token out onto your start globe'
+      : m.to === 56 ? 'This token reaches the centre'
+      : m.via !== undefined ? 'Lands on a star and is carried to the next star'
+      : m.kind === 'globe' ? 'This token hops to the next globe'
+      : m.kind === 'star' ? 'This token jumps to the next star'
+      : 'This token moves to the marked square';
+    if (m.captures > 0) text += ' and sends ' + (m.captures > 1 ? m.captures + ' tokens' : 'a token') + ' home';
+    if (m.sentHome) text += '. Careful: it would be sent home (defended square or a globe)';
+    return text + '.';
+  }
+
+  // Draws the board with the current preview, and sets the main button and the status line.
+  function redraw() {
+    if (!game) return;
+    const { s, myTurn, movable } = game;
+    const color = s.colors[s.turn];
+    const move = selected !== null ? movable.get(selected) : null;
+    const choosing = myTurn && s.phase === 'move';
+
+    const btn = $('roll');
+    btn.textContent = choosing ? 'Confirm move' : 'Roll';
+    btn.disabled = choosing ? !move : !(myTurn && s.phase === 'roll');
+
+    if (s.winner) $('status').textContent = '';
+    else if (!myTurn) $('status').textContent = s.names[color] + "'s turn";
+    else if (s.phase === 'roll') $('status').textContent = 'Your turn - tap Roll';
+    else if (!move) $('status').textContent = 'Pick a token to see where it goes';
+    else $('status').textContent = previewText(move);
+
+    BoardView.render(s, movable, me, pickToken,
+      move ? { color: me, to: move.to, via: move.via } : null, selected);
+  }
+
+  // One button does both jobs: Roll in the roll phase, Confirm move in the move phase.
+  $('roll').onclick = () => {
+    if (!game) return;
+    if (game.s.phase === 'roll') return send({ type: 'roll' });
+    const move = selected !== null ? game.movable.get(selected) : null;
+    if (move) send({ type: 'move', token: move.token, kind: move.kind });
+  };
 
   function renderPlayers(s, current) {
     const box = $('players');

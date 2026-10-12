@@ -78,11 +78,37 @@ test('globus can bring a token out and gives another roll', () => {
   const g = createGame(['red', 'green']);
   const r = roll(g, 'globus');
   assert.equal(r.state.phase, 'move');
-  assert.equal(r.state.moves.length, 1); // all yard tokens are equivalent
+  assert.equal(r.state.moves.length, 4); // every token in the yard is a free choice
   const m = move(r.state, r.state.moves[0]);
   assert.equal(m.state.tokens.red[0], 0);
   assert.equal(m.state.turn, 0);
   assert.equal(m.state.phase, 'roll');
+});
+
+test('on a globus any base token can be picked, alongside track tokens hopping to a globe', () => {
+  const g = game({ red: [YARD, 3, YARD, YARD] });
+  const moves = legalMoves(g, 'globus');
+  assert.deepEqual(moves.filter((m) => m.kind === 'enter').map((m) => m.token), [0, 2, 3]);
+  assert.ok(moves.some((m) => m.kind === 'globe' && m.token === 1));
+  const r = roll(g, 'globus');
+  const played = move(r.state, { token: 3, kind: 'enter' });
+  assert.equal(played.state.tokens.red[3], 0);
+  assert.equal(played.state.tokens.red[0], YARD);
+});
+
+test('every legal move says whether it captures or would send the mover home', () => {
+  const g = game({ red: [20, 40, YARD, YARD] });
+  g.tokens.green = [greenAt(22), YARD, YARD, YARD];
+  const [capturing, quiet] = legalMoves(g, 2);
+  assert.equal(capturing.captures, 1);
+  assert.equal(capturing.sentHome, false);
+  assert.equal(quiet.captures, 0);
+
+  const defended = game({ red: [20, 40, YARD, YARD] });
+  defended.tokens.green = [greenAt(22), greenAt(22), YARD, YARD];
+  assert.equal(legalMoves(defended, 2)[0].sentHome, true);
+  // the preview must not change the real state
+  assert.equal(defended.tokens.red[0], 20);
 });
 
 test('globus with nothing to move still gives another roll', () => {

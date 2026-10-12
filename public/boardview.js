@@ -96,8 +96,17 @@
 
   const label = (color, i, can) => color + ' token ' + (i + 1) + (can ? ', can move' : '');
 
+  const place = (el, x, y) => {
+    el.style.left = 'calc((100% + var(--board-gap)) * ' + x + ' / 15)';
+    el.style.top = 'calc((100% + var(--board-gap)) * ' + y + ' / 15)';
+  };
+
+  // The square a token ends on; the centre cell when it reaches home.
+  const targetSquare = (color, p) => (p === 56 ? [7, 7] : squareOf(color, p));
+
   // movable: Map of token index -> move kind for my colour. onPick(token) is called when one is chosen.
-  function render(state, movable, me, onPick) {
+  // selected: the token index being previewed. preview: { color, to, via } of that token's move, or null.
+  function render(state, movable, me, onPick, preview, selected) {
     // bases: a token waits in its slot; an empty slot means that token is out on the board
     COLORS.forEach((color) => {
       const playing = state.colors.includes(color);
@@ -110,8 +119,8 @@
         btn.type = 'button';
         btn.disabled = !can;
         btn.tabIndex = can ? 0 : -1;
-        if (can) btn.className = 'movable';
-        btn.setAttribute('aria-label', label(color, i, can));
+        if (can) btn.className = 'movable' + (selected === i ? ' selected' : '');
+        btn.setAttribute('aria-label', label(color, i, can) + (can && selected === i ? ', selected' : ''));
         btn.innerHTML = '<span class="token ' + color + '"></span>';
         if (can) btn.onclick = () => onPick(i);
         slot.appendChild(btn);
@@ -126,7 +135,7 @@
         const sq = squareOf(color, p);
         if (!sq) return;
         const key = sq[0] + ',' + sq[1];
-        (onBoard[key] = onBoard[key] || []).push({ color, i, sq });
+        (onBoard[key] = onBoard[key] || []).push({ color, i, sq, p });
       });
     });
     Object.values(onBoard).forEach((group) => {
@@ -146,12 +155,27 @@
         }
         const isTop = t === top;
         const can = canMove(t) && isTop;
-        el.style.left = 'calc((100% + var(--board-gap)) * ' + t.sq[0] + ' / 15)';
-        el.style.top = 'calc((100% + var(--board-gap)) * ' + t.sq[1] + ' / 15)';
-        el.className = 'token-on-board' + (can ? ' movable' : '') + (isTop ? '' : ' covered');
+        const picked = can && selected === t.i;
+        // a token on a globe cannot be captured (only the track has globes, not the finish lane)
+        const safe = t.p <= 50 && B.GLOBES.has((B.START_INDEX[t.color] + t.p) % B.TRACK_LENGTH);
+        place(el, t.sq[0], t.sq[1]);
+        el.className = 'token-on-board' + (can ? ' movable' : '') + (picked ? ' selected' : '') + (isTop ? '' : ' covered');
         el.disabled = !can;
         el.tabIndex = can ? 0 : -1;
         el.onclick = can ? () => onPick(t.i) : null;
+
+        let mark = el.querySelector('.safe-mark');
+        if (isTop && safe) {
+          if (!mark) {
+            mark = document.createElement('span');
+            mark.className = 'safe-mark';
+            mark.setAttribute('aria-hidden', 'true');
+            mark.innerHTML = '<svg viewBox="0 0 24 24">' + GLOBE_PATHS + '</svg>';
+            el.appendChild(mark);
+          }
+        } else if (mark) {
+          mark.remove();
+        }
 
         let badge = el.querySelector('.stack-count');
         if (isTop && group.length > 1) {
@@ -165,13 +189,36 @@
         } else if (badge) {
           badge.remove();
         }
-        el.setAttribute('aria-label', label(t.color, t.i, can) +
+        el.setAttribute('aria-label', label(t.color, t.i, can) + (picked ? ', selected' : '') +
+          (isTop && safe ? ', on a globe, protected' : '') +
           (isTop && group.length > 1 ? ', ' + group.length + ' tokens on this square' : ''));
       });
     });
     boardTokens.forEach((el, id) => {
       if (!seen.has(id)) { el.remove(); boardTokens.delete(id); }
     });
+
+    // Preview of the selected move: a ghost token where it will land (and the star it passes on the way).
+    tokenLayer.querySelectorAll('.dest, .via').forEach((e) => e.remove());
+    if (preview) {
+      if (preview.via !== undefined) {
+        const vs = targetSquare(preview.color, preview.via);
+        if (vs) {
+          const via = document.createElement('div');
+          via.className = 'via';
+          place(via, vs[0], vs[1]);
+          tokenLayer.appendChild(via);
+        }
+      }
+      const ds = targetSquare(preview.color, preview.to);
+      if (ds) {
+        const dest = document.createElement('div');
+        dest.className = 'dest';
+        dest.innerHTML = '<span class="token ' + preview.color + '"></span>';
+        place(dest, ds[0], ds[1]);
+        tokenLayer.appendChild(dest);
+      }
+    }
   }
 
   window.BoardView = { build, render, GLOBE_PATHS };

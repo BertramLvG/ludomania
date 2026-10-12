@@ -65,7 +65,6 @@ function legalMoves(state, face) {
   const color = currentColor(state);
   const tokens = state.tokens[color];
   const moves = [];
-  const yardToken = tokens.indexOf(YARD);
 
   if (typeof face === 'number') {
     tokens.forEach((p, token) => {
@@ -87,12 +86,21 @@ function legalMoves(state, face) {
       if (to !== null) moves.push({ token, from: p, to, kind: 'star' });
     });
   } else if (face === 'globus') {
-    if (yardToken !== -1) moves.push({ token: yardToken, from: YARD, to: 0, kind: 'enter' });
+    // Any token in the yard can be the one to come out; any token on the track can hop to the next globe.
     tokens.forEach((p, token) => {
+      if (p === YARD) { moves.push({ token, from: YARD, to: 0, kind: 'enter' }); return; }
       if (!isOnTrack(p)) return;
       const to = nextInSet(color, p, GLOBES);
       if (to !== null) moves.push({ token, from: p, to, kind: 'globe' });
     });
+  }
+
+  // Tell the player what each move would do, so the client can preview it before they confirm.
+  for (const m of moves) {
+    const probe = cloneState(state);
+    const events = resolveMove(probe, m);
+    m.captures = events.filter((e) => e.type === 'capture').length;
+    m.sentHome = events.some((e) => e.type === 'captured');
   }
   return moves;
 }
