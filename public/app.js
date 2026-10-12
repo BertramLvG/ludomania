@@ -9,7 +9,9 @@
   let leaving = false;
   const log = [];
 
+  let currentSection = 'auth';
   function show(section) {
+    currentSection = section;
     for (const id of ['auth', 'menu', 'profile', 'lobby', 'game']) $(id).classList.toggle('hidden', id !== section);
     $('leaveBtn').classList.toggle('hidden', section !== 'lobby' && section !== 'game');
     // the profile page is for between games, so the name in the header is not clickable during one
@@ -69,10 +71,20 @@
 
   // The server knows who you are from your login, so no name is sent.
   $('create').onclick = () => { setError(''); connect(() => send({ type: 'create' })); };
+  // "Join" asks for the room code in a small dialog.
   $('join').onclick = () => {
     setError('');
+    $('joinError').textContent = '';
+    $('code').value = '';
+    $('joinDialog').showModal();
+    $('code').focus();
+  };
+  $('joinCancel').onclick = () => $('joinDialog').close();
+  $('joinForm').onsubmit = (e) => {
+    e.preventDefault();
     const code = $('code').value.trim().toUpperCase();
-    if (code.length !== 4) return setError('Enter the 4-letter room code');
+    if (code.length !== 4) { $('joinError').textContent = 'Enter the 4-letter room code'; return; }
+    $('joinDialog').close();
     connect(() => send({ type: 'join', code }));
   };
   // The host can start with two or more people. Unless the lobby is full, they are asked about bots first.
@@ -110,12 +122,18 @@
     setError('');
   }
 
-  $('leaveBtn').onclick = () => {
-    if (!window.confirm('Leave this game?')) return;
-    resetGame();
+  // Back to the start page. Leaving a lobby or a running game asks first.
+  function goToStart() {
+    if (currentSection === 'lobby' || currentSection === 'game') {
+      if (!window.confirm('Leave this game?')) return;
+      resetGame();
+    }
     show('menu');
     loadProfile();
-  };
+  }
+  $('leaveBtn').onclick = goToStart;
+  // The wordmark in the top left does the same, but only when you are logged in.
+  $('homeBtn').onclick = () => { if (currentSection !== 'auth') goToStart(); };
 
   /* ---------- Account: log in, statistics, leaderboard ---------- */
   let registerMode = false;

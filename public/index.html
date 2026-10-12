@@ -12,7 +12,7 @@
 <div class="app">
 
   <header class="header">
-    <div class="brand">
+    <button class="brand" id="homeBtn" type="button" aria-label="LudoMania, back to the start page">
       <span class="brand-name">LudoMania</span>
       <span class="brand-dots" aria-hidden="true">
         <span style="background: var(--red)"></span>
@@ -20,7 +20,7 @@
         <span style="background: var(--yellow)"></span>
         <span style="background: var(--blue)"></span>
       </span>
-    </div>
+    </button>
     <nav class="nav" aria-label="Game">
       <button class="theme-switch" id="themeSwitch" role="switch" aria-checked="true" aria-label="Night mode">
         <span id="themeLabel">Night</span>
@@ -64,18 +64,10 @@
   <section id="menu" class="screen hidden" aria-label="Start">
     <div class="card screen-card">
       <h1 class="screen-title" id="greeting">Play Ludo online</h1>
-      <div class="row">
-        <button id="create" class="btn primary" type="button">Create game</button>
-      </div>
-      <div class="field">
-        <label for="code" class="eyebrow">Room code</label>
-        <div class="row">
-          <input id="code" class="input" placeholder="ABCD" maxlength="4" autocapitalize="characters" autocomplete="off">
-          <button id="join" class="btn" type="button">Join game</button>
-        </div>
-      </div>
-      <div class="row">
-        <button id="solo" class="btn" type="button">Play solo against 3 bots</button>
+      <div class="menu-buttons">
+        <button id="solo" class="btn menu-btn" type="button">vs Bots</button>
+        <button id="create" class="btn menu-btn" type="button">Host</button>
+        <button id="join" class="btn menu-btn" type="button">Join</button>
       </div>
     </div>
     <div class="card screen-card">
@@ -149,6 +141,21 @@
     </aside>
   </main>
 </div>
+
+<dialog id="joinDialog" aria-labelledby="joinTitle">
+  <form class="dialog-body" id="joinForm">
+    <h2 id="joinTitle">Join a game</h2>
+    <div class="field">
+      <label for="code" class="eyebrow">Room code</label>
+      <input id="code" class="input" placeholder="ABCD" maxlength="4" autocapitalize="characters" autocomplete="off">
+    </div>
+    <p id="joinError" class="error" role="alert"></p>
+    <div class="row">
+      <button class="btn primary" id="joinGo" type="submit">Join</button>
+      <button class="btn" id="joinCancel" type="button">Cancel</button>
+    </div>
+  </form>
+</dialog>
 
 <dialog id="startDialog" aria-labelledby="startTitle">
   <div class="dialog-body">
