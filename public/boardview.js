@@ -94,7 +94,6 @@
     return B.FINISH_XY[color][p - 51];
   }
 
-  const STACK_CLASSES = { 2: ['stack-2a', 'stack-2b'], 3: ['stack-3a', 'stack-3b', 'stack-3c'], 4: ['stack-4a', 'stack-4b', 'stack-4c', 'stack-4d'] };
   const label = (color, i, can) => color + ' token ' + (i + 1) + (can ? ', can move' : '');
 
   // movable: Map of token index -> move kind for my colour. onPick(token) is called when one is chosen.
@@ -131,27 +130,43 @@
       });
     });
     Object.values(onBoard).forEach((group) => {
-      group.forEach((t, n) => {
+      // Tokens sharing a square are drawn on top of each other: one token shows the count, the rest are hidden.
+      const canMove = (t) => t.color === me && movable.has(t.i);
+      const top = group.find(canMove) || group[group.length - 1];
+      group.forEach((t) => {
         const id = t.color + '-' + t.i;
         seen.add(id);
         let el = boardTokens.get(id);
         if (!el) {
           el = document.createElement('button');
           el.type = 'button';
-          el.className = 'token-on-board';
           el.innerHTML = '<span class="token ' + t.color + '"></span>';
           tokenLayer.appendChild(el);
           boardTokens.set(id, el);
         }
-        const can = t.color === me && movable.has(t.i);
+        const isTop = t === top;
+        const can = canMove(t) && isTop;
         el.style.left = 'calc((100% + var(--board-gap)) * ' + t.sq[0] + ' / 15)';
         el.style.top = 'calc((100% + var(--board-gap)) * ' + t.sq[1] + ' / 15)';
-        el.className = 'token-on-board' + (can ? ' movable' : '') +
-          (group.length > 1 ? ' ' + STACK_CLASSES[Math.min(group.length, 4)][n % 4] : '');
+        el.className = 'token-on-board' + (can ? ' movable' : '') + (isTop ? '' : ' covered');
         el.disabled = !can;
         el.tabIndex = can ? 0 : -1;
-        el.setAttribute('aria-label', label(t.color, t.i, can));
         el.onclick = can ? () => onPick(t.i) : null;
+
+        let badge = el.querySelector('.stack-count');
+        if (isTop && group.length > 1) {
+          if (!badge) {
+            badge = document.createElement('span');
+            badge.className = 'stack-count';
+            badge.setAttribute('aria-hidden', 'true');
+            el.appendChild(badge);
+          }
+          badge.textContent = String(group.length);
+        } else if (badge) {
+          badge.remove();
+        }
+        el.setAttribute('aria-label', label(t.color, t.i, can) +
+          (isTop && group.length > 1 ? ', ' + group.length + ' tokens on this square' : ''));
       });
     });
     boardTokens.forEach((el, id) => {

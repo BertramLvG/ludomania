@@ -224,6 +224,39 @@ test('the host can add bots and play solo; bots take their turns', () => {
   assert.ok(a.inbox.some((m) => m.type === 'state' && m.events.some((e) => e.color === 'green')));
 });
 
+test('two people can start straight away, with or without bots filling the empty seats', () => {
+  const { hub } = manualHub();
+  // just the two players in the lobby
+  const a = client(hub);
+  a.send({ type: 'create', name: 'Anna' });
+  const b = client(hub);
+  b.send({ type: 'join', code: a.last('joined').code, name: 'Ben' });
+  a.send({ type: 'start' });
+  assert.deepEqual(a.last('state').state.colors, ['red', 'yellow']);
+  assert.deepEqual(a.last('state').state.bots, []);
+
+  // the same lobby, but the host asks for bots to fill the seats
+  const c = client(hub);
+  c.send({ type: 'create', name: 'Cleo' });
+  const d = client(hub);
+  d.send({ type: 'join', code: c.last('joined').code, name: 'Dan' });
+  c.send({ type: 'start', fillBots: true });
+  const s = c.last('state').state;
+  assert.deepEqual(s.colors, ['red', 'green', 'yellow', 'blue']);
+  assert.deepEqual(s.bots, ['yellow', 'blue']);
+  assert.deepEqual([s.names.red, s.names.green], ['Cleo', 'Dan']);
+});
+
+test('only the host is told they are the host', () => {
+  const { hub } = manualHub();
+  const a = client(hub);
+  a.send({ type: 'create', name: 'Anna' });
+  const b = client(hub);
+  b.send({ type: 'join', code: a.last('joined').code, name: 'Ben' });
+  assert.equal(a.last('lobby').youHost, true);
+  assert.equal(b.last('lobby').youHost, false);
+});
+
 test('only the host can add bots, and not after the game has started', () => {
   const { hub } = manualHub();
   const a = client(hub);

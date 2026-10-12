@@ -74,9 +74,21 @@
     if (code.length !== 4) return setError('Enter the 4-letter room code');
     connect(() => send({ type: 'join', code, name: name() }));
   };
-  $('start').onclick = () => send({ type: 'start' });
-  $('addBot').onclick = () => send({ type: 'addBot' });
-  $('removeBot').onclick = () => send({ type: 'removeBot' });
+  // The host can start with two or more people. Unless the lobby is full, they are asked about bots first.
+  let lobbyInfo = null;
+  $('start').onclick = () => {
+    if (!lobbyInfo) return;
+    const n = lobbyInfo.players.length;
+    if (n >= 4) return send({ type: 'start' });
+    $('startText').textContent = 'There ' + (n === 1 ? 'is 1 player' : 'are ' + n + ' players') +
+      ' in the lobby. Do you want bots to fill the empty seats, or play with just the people here?';
+    $('startAsIs').textContent = 'Play with ' + n + ' players';
+    $('startAsIs').classList.toggle('hidden', n < 2);
+    $('startDialog').showModal();
+  };
+  $('startBots').onclick = () => { $('startDialog').close(); send({ type: 'start', fillBots: true }); };
+  $('startAsIs').onclick = () => { $('startDialog').close(); send({ type: 'start' }); };
+  $('startCancel').onclick = () => $('startDialog').close();
   $('roll').onclick = () => send({ type: 'roll' });
   let soloPending = false;
   $('solo').onclick = () => {
@@ -152,10 +164,14 @@
     };
     msg.players.forEach((p) => chip(p.name + (p.host ? ' (host)' : '')));
     for (let i = 0; i < msg.bots; i++) chip('Bot ' + (i + 1));
-    // the server enforces that only the host can add bots and start
-    $('lobbyHint').textContent = msg.players.length + msg.bots < 2
-      ? 'Waiting for another player, or add a bot to play solo'
-      : 'The host can add bots and start the game';
+
+    lobbyInfo = msg;
+    const enough = msg.players.length + msg.bots >= 2;
+    $('start').classList.toggle('hidden', !msg.youHost);
+    $('start').disabled = !enough;
+    $('lobbyHint').textContent = !msg.youHost
+      ? 'Waiting for the host to start the game'
+      : enough ? 'Start whenever you are ready.' : 'Waiting for one more player to join.';
   }
 
   function renderLog() {

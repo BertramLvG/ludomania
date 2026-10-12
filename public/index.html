@@ -72,8 +72,6 @@
       </div>
       <div id="lobbyPlayers" class="chips"></div>
       <div class="row">
-        <button id="addBot" class="btn" type="button">Add bot</button>
-        <button id="removeBot" class="btn" type="button">Remove bot</button>
         <button id="start" class="btn primary" type="button">Start game</button>
       </div>
       <p id="lobbyHint" class="hint"></p>
@@ -115,6 +113,18 @@
     </aside>
   </main>
 </div>
+
+<dialog id="startDialog" aria-labelledby="startTitle">
+  <div class="dialog-body">
+    <h2 id="startTitle">Start the game</h2>
+    <p id="startText"></p>
+    <div class="row">
+      <button class="btn primary" id="startBots" type="button">Fill with bots</button>
+      <button class="btn" id="startAsIs" type="button"></button>
+      <button class="btn" id="startCancel" type="button">Cancel</button>
+    </div>
+  </div>
+</dialog>
 
 <dialog id="rules" aria-labelledby="rulesTitle">
   <div class="dialog-body">

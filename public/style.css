@@ -274,16 +274,14 @@ button:focus-visible, input:focus-visible, a:focus-visible, .token-on-board:focu
 @keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.12); } }
 .slot .movable .token { outline-offset: 1px; }
 
-/* Several tokens on one square */
-.stack-2a .token { transform: translate(-30%, 0) scale(0.7); }
-.stack-2b .token { transform: translate(30%, 0) scale(0.7); }
-.stack-3a .token { transform: translate(-30%, -26%) scale(0.62); }
-.stack-3b .token { transform: translate(30%, -26%) scale(0.62); }
-.stack-3c .token { transform: translate(0, 30%) scale(0.62); }
-.stack-4a .token { transform: translate(-30%, -30%) scale(0.62); }
-.stack-4b .token { transform: translate(30%, -30%) scale(0.62); }
-.stack-4c .token { transform: translate(-30%, 30%) scale(0.62); }
-.stack-4d .token { transform: translate(30%, 30%) scale(0.62); }
+/* Several tokens on one square: they sit on top of each other and one shows how many there are */
+.token-on-board.covered { visibility: hidden; pointer-events: none; }
+.stack-count {
+  position: absolute; top: -3px; right: -3px; min-width: 18px; height: 18px; padding: 0 4px;
+  border-radius: 9px; background: var(--text); color: var(--page);
+  font: 800 11px/18px var(--font); text-align: center; pointer-events: none;
+  box-shadow: 0 0 0 2px var(--frame);
+}
 
 .legend { display: flex; flex-wrap: wrap; gap: 8px 20px; color: var(--muted); font-size: 13px; padding: 0 8px; }
 .legend span { display: inline-flex; align-items: center; gap: 6px; }

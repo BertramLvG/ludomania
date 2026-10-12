@@ -48,7 +48,10 @@ function createHub({
   }
 
   const sendTo = (player, msg) => { try { if (!player.gone) player.send(msg); } catch { /* connection gone */ } };
-  const broadcast = (room, msg) => room.players.forEach((p) => sendTo(p, msg));
+  // The lobby message tells each player whether they are the host (only the host sees the start controls).
+  const broadcast = (room, msg) => room.players.forEach((p) => {
+    sendTo(p, msg.type === 'lobby' ? { ...msg, youHost: p === room.host } : msg);
+  });
   const lobbyMsg = (room) => ({
     type: 'lobby', code: room.code,
     players: room.players.map((p) => ({ name: p.name, host: p === room.host })),
@@ -141,9 +144,11 @@ function createHub({
       broadcast(room, lobbyMsg(room));
     },
 
-    start(conn) {
+    // msg.fillBots: fill every empty seat (up to 4 players) with bots before starting
+    start(conn, msg) {
       const room = lobbyHost(conn);
       if (!room) return;
+      if (msg && msg.fillBots === true) room.botCount = Math.max(room.botCount, MAX_PLAYERS - room.players.length);
       const total = room.players.length + room.botCount;
       if (total < 2) return fail(conn, 'Need at least 2 players (add a bot to play solo)');
       const seats = SEATS[total];
