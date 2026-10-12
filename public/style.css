@@ -178,6 +178,23 @@ button:focus-visible, input:focus-visible, a:focus-visible, .token-on-board:focu
 .btn:active { transform: translateY(2px); box-shadow: inset 0 -2px 0 rgba(0,0,0,0.18); }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
+.screen-title.small { font-size: 20px; }
+.user-chip { height: 44px; padding: 0 6px; display: flex; align-items: center; color: var(--muted); font-weight: 600; font-size: 15px; }
+.user-chip.hidden { display: none !important; }
+
+.stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.stat { background: var(--slot); border-radius: 16px; padding: 12px 8px; text-align: center; box-shadow: inset 0 -3px 0 rgba(0,0,0,0.18); }
+.stat b { display: block; font-weight: 800; font-size: 26px; letter-spacing: -0.5px; }
+.stat span { font-size: 13px; color: var(--muted); }
+
+.leaderboard { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; }
+.leaderboard:empty { display: none; }
+.lb-row { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 16px; }
+.lb-row.me { background: var(--blue-tint); }
+.lb-rank { width: 28px; flex: none; font-weight: 800; color: var(--muted); }
+.lb-name { flex: 1; min-width: 0; font-weight: 600; overflow-wrap: anywhere; }
+.lb-score { color: var(--muted); font-size: 14px; white-space: nowrap; }
+
 .error { min-height: 1.4em; margin: 0; color: var(--error); font-weight: 600; font-size: 15px; }
 .hint { color: var(--muted); font-size: 14px; margin: 0; }
 .room-code { font-weight: 800; font-size: 34px; letter-spacing: 6px; }

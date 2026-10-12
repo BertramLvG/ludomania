@@ -35,18 +35,36 @@
       </button>
       <button class="nav-link" id="rulesBtn" type="button">Rules</button>
       <button class="nav-link hidden" id="leaveBtn" type="button">Leave game</button>
+      <span class="user-chip hidden" id="userChip"></span>
+      <button class="nav-link hidden" id="logoutBtn" type="button">Log out</button>
     </nav>
   </header>
 
   <p id="error" class="error" role="alert"></p>
 
-  <section id="menu" class="screen" aria-label="Start">
-    <div class="card screen-card">
-      <h1 class="screen-title">Play Ludo online</h1>
+  <section id="auth" class="screen hidden" aria-label="Log in">
+    <form class="card screen-card" id="authForm">
+      <h1 class="screen-title" id="authTitle">Log in</h1>
       <div class="field">
-        <label for="name" class="eyebrow">Your name</label>
-        <input id="name" class="input" placeholder="Player" maxlength="20" autocomplete="nickname">
+        <label for="authUser" class="eyebrow">Username</label>
+        <input id="authUser" class="input" maxlength="20" autocomplete="username" autocapitalize="none" required>
       </div>
+      <div class="field">
+        <label for="authPass" class="eyebrow">Password</label>
+        <input id="authPass" class="input" type="password" maxlength="128" autocomplete="current-password" required>
+      </div>
+      <div class="row">
+        <button id="authSubmit" class="btn primary" type="submit">Log in</button>
+        <button id="authSwitch" class="btn" type="button">Create account</button>
+      </div>
+      <p id="authHint" class="hint"></p>
+    </form>
+  </section>
+
+  <section id="menu" class="screen hidden" aria-label="Start">
+    <div class="card screen-card">
+      <h1 class="screen-title" id="greeting">Play Ludo online</h1>
+      <div class="stats" id="stats" aria-label="Your statistics"></div>
       <div class="row">
         <button id="create" class="btn primary" type="button">Create game</button>
       </div>
@@ -60,6 +78,11 @@
       <div class="row">
         <button id="solo" class="btn" type="button">Play solo against 3 bots</button>
       </div>
+    </div>
+    <div class="card screen-card">
+      <h2 class="screen-title small">Leaderboard</h2>
+      <ol class="leaderboard" id="leaderboard" aria-label="Top players"></ol>
+      <p class="hint" id="leaderboardEmpty">No finished games yet.</p>
     </div>
   </section>
 

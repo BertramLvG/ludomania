@@ -34,6 +34,7 @@ function publicState(room) {
 function createHub({
   rejoinMs = REJOIN_MS, setTimer = setTimeout, clearTimer = clearTimeout,
   botDelayMs = BOT_DELAY_MS, setBotTimer = setTimeout,
+  store = null, // where finished games are recorded for the players' statistics
 } = {}) {
   const rooms = new Map();
   const conns = new Map(); // id -> connection record
@@ -70,8 +71,11 @@ function createHub({
     if (conn.room) return fail(conn, 'Already in a room');
     if (room.state) return fail(conn, 'Game already started');
     if (room.players.length + room.botCount >= MAX_PLAYERS) return fail(conn, 'Room is full');
+    if (conn.user && room.players.some((p) => p.user && p.user.id === conn.user.id)) {
+      return fail(conn, 'You are already in this room');
+    }
     conn.room = room;
-    conn.name = cleanName(name);
+    conn.name = conn.user ? conn.user.username : cleanName(name); // logged-in players use their account name
     room.players.push(conn);
     if (!room.host) room.host = conn;
     sendTo(conn, { type: 'joined', code: room.code });
@@ -90,7 +94,20 @@ function createHub({
     const result = s.phase === 'roll' ? roll(s) : move(s, chooseMove(s));
     room.state = result.state;
     broadcast(room, stateMsg(room, result.events));
+    finishIfDone(room);
     scheduleBot(room);
+  }
+
+  // When a game ends, every logged-in player who took part gets a played game, and the winner a win.
+  // Games that are abandoned before anyone wins are not counted.
+  function finishIfDone(room) {
+    if (!room.state.winner || room.recorded) return;
+    room.recorded = true;
+    if (!store) return;
+    const humans = room.players.filter((p) => p.user);
+    const winner = humans.find((p) => p.color === room.state.winner);
+    store.recordGame({ winnerId: winner ? winner.user.id : null, playerIds: humans.map((p) => p.user.id) })
+      .catch((err) => console.error('Could not record game:', err));
   }
 
   // The absent player ran out of time: a bot takes over their seat for the rest of the game.
@@ -172,6 +189,7 @@ function createHub({
       const room = rooms.get(String(msg.code || '').toUpperCase());
       const old = room && room.state && room.players.find((p) => p.secret && p.secret === msg.secret);
       if (!old || !old.gone || room.bots.has(old.color)) return fail(conn, 'Cannot rejoin this game');
+      if (old.user && (!conn.user || conn.user.id !== old.user.id)) return fail(conn, 'Cannot rejoin this game');
       if (old.timer) { clearTimer(old.timer); old.timer = null; }
       // the new connection takes over the old player's seat
       Object.assign(conn, { room, color: old.color, name: old.name, secret: old.secret, gone: false });
@@ -188,6 +206,7 @@ function createHub({
       const result = roll(room.state);
       room.state = result.state;
       broadcast(room, stateMsg(room, result.events));
+      finishIfDone(room);
       scheduleBot(room);
     },
 
@@ -198,14 +217,16 @@ function createHub({
       const result = move(room.state, { token: msg.token, kind: msg.kind });
       room.state = result.state;
       broadcast(room, stateMsg(room, result.events));
+      finishIfDone(room);
       scheduleBot(room);
     },
   };
 
   return {
-    connect(send) {
+    // `user` is the logged-in account ({ id, username }); the server only opens sockets for logged-in users.
+    connect(send, user = null) {
       const id = nextId++;
-      conns.set(id, { send, room: null, color: null, name: null, gone: false });
+      conns.set(id, { send, user, room: null, color: null, name: null, gone: false });
       return id;
     },
 

@@ -4,9 +4,9 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { createHub } = require('../src/hub');
 
-function client(hub) {
+function client(hub, user) {
   const inbox = [];
-  const id = hub.connect((m) => inbox.push(m));
+  const id = hub.connect((m) => inbox.push(m), user);
   return {
     inbox,
     send: (msg) => hub.handle(id, msg),

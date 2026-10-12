@@ -10,8 +10,8 @@
   const log = [];
 
   function show(section) {
-    for (const id of ['menu', 'lobby', 'game']) $(id).classList.toggle('hidden', id !== section);
-    $('leaveBtn').classList.toggle('hidden', section === 'menu');
+    for (const id of ['auth', 'menu', 'lobby', 'game']) $(id).classList.toggle('hidden', id !== section);
+    $('leaveBtn').classList.toggle('hidden', section !== 'lobby' && section !== 'game');
   }
   const setError = (text) => { $('error').textContent = text || ''; };
 
@@ -65,14 +65,13 @@
   }
   const send = (msg) => ws && ws.readyState === WebSocket.OPEN && ws.send(JSON.stringify(msg));
 
-  const name = () => $('name').value.trim() || 'Player';
-
-  $('create').onclick = () => { setError(''); connect(() => send({ type: 'create', name: name() })); };
+  // The server knows who you are from your login, so no name is sent.
+  $('create').onclick = () => { setError(''); connect(() => send({ type: 'create' })); };
   $('join').onclick = () => {
     setError('');
     const code = $('code').value.trim().toUpperCase();
     if (code.length !== 4) return setError('Enter the 4-letter room code');
-    connect(() => send({ type: 'join', code, name: name() }));
+    connect(() => send({ type: 'join', code }));
   };
   // The host can start with two or more people. Unless the lobby is full, they are asked about bots first.
   let lobbyInfo = null;
@@ -93,11 +92,11 @@
   $('solo').onclick = () => {
     setError('');
     soloPending = true;
-    connect(() => send({ type: 'create', name: name() }));
+    connect(() => send({ type: 'create' }));
   };
 
-  $('leaveBtn').onclick = () => {
-    if (!window.confirm('Leave this game?')) return;
+  // Drops the connection and everything about the current room or game.
+  function resetGame() {
     leaving = true;
     clearSession();
     clearTimeout(retryTimer);
@@ -105,10 +104,124 @@
     ws = null; me = null; roomCode = null;
     log.length = 0;
     resetRolls();
-    game = null; selected = null;
+    game = null; selected = null; winnerSeen = false;
     setError('');
+  }
+
+  $('leaveBtn').onclick = () => {
+    if (!window.confirm('Leave this game?')) return;
+    resetGame();
     show('menu');
+    loadProfile();
   };
+
+  /* ---------- Account: log in, statistics, leaderboard ---------- */
+  let registerMode = false;
+  let winnerSeen = false;   // so the statistics are refreshed once when a game ends
+  let myName = null;
+
+  async function api(method, path, body) {
+    const res = await fetch(path, {
+      method, credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+    const text = await res.text();
+    return { ok: res.ok, status: res.status, data: text ? JSON.parse(text) : null };
+  }
+
+  function setUser(name) {
+    myName = name;
+    $('userChip').textContent = name || '';
+    $('userChip').classList.toggle('hidden', !name);
+    $('logoutBtn').classList.toggle('hidden', !name);
+  }
+
+  function setAuthMode(register) {
+    registerMode = register;
+    $('authTitle').textContent = register ? 'Create account' : 'Log in';
+    $('authSubmit').textContent = register ? 'Create account' : 'Log in';
+    $('authSwitch').textContent = register ? 'I already have an account' : 'Create account';
+    $('authPass').autocomplete = register ? 'new-password' : 'current-password';
+    $('authHint').textContent = register ? 'Pick a username (3-20 letters, numbers, _ or -) and a password of at least 8 characters.' : '';
+  }
+
+  function showAuth() {
+    setUser(null);
+    setAuthMode(false);
+    show('auth');
+  }
+
+  $('authSwitch').onclick = () => { setError(''); setAuthMode(!registerMode); };
+  $('authForm').onsubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    const r = await api('POST', registerMode ? '/api/register' : '/api/login',
+      { username: $('authUser').value.trim(), password: $('authPass').value });
+    if (!r.ok) return setError((r.data && r.data.error) || 'Something went wrong');
+    $('authPass').value = '';
+    setUser(r.data.username);
+    show('menu');
+    loadProfile();
+  };
+
+  $('logoutBtn').onclick = async () => {
+    resetGame();
+    await api('POST', '/api/logout');
+    showAuth();
+  };
+
+  const percent = (won, played) => (played ? Math.round((100 * won) / played) + '%' : '-');
+
+  function renderStats(username, stats) {
+    $('greeting').textContent = 'Hi, ' + username;
+    $('stats').textContent = '';
+    [['Games', stats.played], ['Wins', stats.won], ['Win rate', percent(stats.won, stats.played)]].forEach(([label, value]) => {
+      const box = document.createElement('div');
+      box.className = 'stat';
+      const b = document.createElement('b');
+      b.textContent = String(value);
+      const s = document.createElement('span');
+      s.textContent = label;
+      box.append(b, s);
+      $('stats').appendChild(box);
+    });
+  }
+
+  function renderLeaderboard(players) {
+    const list = $('leaderboard');
+    list.textContent = '';
+    $('leaderboardEmpty').classList.toggle('hidden', players.length > 0);
+    players.forEach((p, i) => {
+      const li = document.createElement('li');
+      li.className = 'lb-row' + (p.username === myName ? ' me' : '');
+      const rank = document.createElement('span');
+      rank.className = 'lb-rank';
+      rank.textContent = String(i + 1);
+      const nm = document.createElement('span');
+      nm.className = 'lb-name';
+      nm.textContent = p.username;
+      const score = document.createElement('span');
+      score.className = 'lb-score';
+      score.textContent = p.won + ' wins · ' + p.played + ' games (' + percent(p.won, p.played) + ')';
+      li.append(rank, nm, score);
+      list.appendChild(li);
+    });
+  }
+
+  // Fetches the logged-in user, their statistics and the leaderboard. Sends you to the login page if you are logged out.
+  async function loadProfile() {
+    try {
+      const r = await api('GET', '/api/me');
+      if (r.status === 401) return showAuth();
+      setUser(r.data.username);
+      renderStats(r.data.username, r.data.stats);
+      const lb = await api('GET', '/api/leaderboard');
+      if (lb.ok) renderLeaderboard(lb.data.players);
+    } catch {
+      setError('Could not reach the server.');
+    }
+  }
 
   /* ---------- Messages ---------- */
   function describe(ev, names) {
@@ -130,7 +243,8 @@
     switch (msg.type) {
       case 'error':
         setError(msg.message);
-        if (msg.message === 'Cannot rejoin this game') { clearSession(); clearTimeout(retryTimer); show('menu'); }
+        if (msg.message === 'Not logged in') { resetGame(); showAuth(); }
+        if (msg.message === 'Cannot rejoin this game') { clearSession(); clearTimeout(retryTimer); show('menu'); loadProfile(); }
         break;
       case 'joined':
         roomCode = msg.code;
@@ -145,6 +259,7 @@
       case 'lobby': renderLobby(msg); break;
       case 'started':
         me = msg.you;
+        winnerSeen = false;
         if (roomCode || saved()) saveSession({ code: roomCode || saved().code, secret: msg.secret });
         show('game');
         BoardView.build($('board'));
@@ -278,7 +393,10 @@
     renderTrail(grew);
     setDie(diceEl, s.face);
 
-    if (s.winner) clearSession();
+    if (s.winner) {
+      clearSession();
+      if (!winnerSeen) { winnerSeen = true; setTimeout(loadProfile, 1500); } // the server records the game just after the win
+    }
     renderPlayers(s, color);
 
     // The moves the player can make now (token index -> move). With only one choice it is pre-selected.
@@ -391,6 +509,9 @@
   }
 
   setTheme(true);
-  show('menu');
-  if (saved()) rejoin();
+  // Log in first. If you were in a game when the page was closed, try to rejoin it (within 60 seconds).
+  (async () => {
+    await loadProfile();
+    if (myName) { show('menu'); if (saved()) rejoin(); }
+  })();
 })();
