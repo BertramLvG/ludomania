@@ -106,7 +106,7 @@ function createHub({
     if (!store) return;
     const humans = room.players.filter((p) => p.user);
     const winner = humans.find((p) => p.color === room.state.winner);
-    store.recordGame({ winnerId: winner ? winner.user.id : null, playerIds: humans.map((p) => p.user.id) })
+    store.recordGame({ winnerId: winner ? winner.user.id : null, playerIds: humans.map((p) => p.user.id), rolls: room.rolls })
       .catch((err) => console.error('Could not record game:', err));
   }
 
@@ -135,6 +135,7 @@ function createHub({
       const room = {
         code: newCode(), players: [], host: null, state: null,
         botCount: 0, bots: new Set(), botNames: {}, botTimer: null,
+        rolls: {}, // userId -> dice that player rolled in this game (bots are not counted)
       };
       rooms.set(room.code, room);
       join(conn, room, msg.name);
@@ -205,6 +206,7 @@ function createHub({
       if (currentColor(room.state) !== conn.color) return fail(conn, 'Not your turn');
       const result = roll(room.state);
       room.state = result.state;
+      if (conn.user) room.rolls[conn.user.id] = (room.rolls[conn.user.id] || 0) + 1; // every press of Roll counts
       broadcast(room, stateMsg(room, result.events));
       finishIfDone(room);
       scheduleBot(room);

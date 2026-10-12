@@ -37,7 +37,7 @@ test('registering creates an account and logs the user in', async (t) => {
   const me = await call('GET', '/api/me', undefined, r.cookie);
   assert.equal(me.status, 200);
   assert.equal(me.body.username, 'Anna');
-  assert.deepEqual(me.body.stats, { played: 0, won: 0 });
+  assert.deepEqual(me.body.stats, { played: 0, won: 0, diceRolled: 0 });
 });
 
 test('the password is never stored in plain text', async (t) => {

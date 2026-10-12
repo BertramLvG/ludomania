@@ -10,8 +10,10 @@
   const log = [];
 
   function show(section) {
-    for (const id of ['auth', 'menu', 'lobby', 'game']) $(id).classList.toggle('hidden', id !== section);
+    for (const id of ['auth', 'menu', 'profile', 'lobby', 'game']) $(id).classList.toggle('hidden', id !== section);
     $('leaveBtn').classList.toggle('hidden', section !== 'lobby' && section !== 'game');
+    // the profile page is for between games, so the name in the header is not clickable during one
+    $('userChip').disabled = section === 'lobby' || section === 'game';
   }
   const setError = (text) => { $('error').textContent = text || ''; };
 
@@ -173,10 +175,19 @@
 
   const percent = (won, played) => (played ? Math.round((100 * won) / played) + '%' : '-');
 
+  $('userChip').onclick = () => { show('profile'); loadProfile(); };
+  $('profileBack').onclick = () => show('menu');
+
   function renderStats(username, stats) {
     $('greeting').textContent = 'Hi, ' + username;
+    $('profileName').textContent = username;
     $('stats').textContent = '';
-    [['Games', stats.played], ['Wins', stats.won], ['Win rate', percent(stats.won, stats.played)]].forEach(([label, value]) => {
+    [
+      ['Games', stats.played],
+      ['Wins', stats.won],
+      ['Win rate', percent(stats.won, stats.played)],
+      ['Dice rolled', stats.diceRolled.toLocaleString()],
+    ].forEach(([label, value]) => {
       const box = document.createElement('div');
       box.className = 'stat';
       const b = document.createElement('b');

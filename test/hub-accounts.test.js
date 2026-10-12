@@ -71,9 +71,10 @@ test('a finished game is recorded for the human players, and the winner gets the
 
   // both humans play a whole game, always picking the bot's preferred move
   let state = a.last('state').state;
+  let rolled = 0;
   for (let i = 0; i < 20000 && !state.winner; i++) {
     const me = players[state.colors[state.turn]];
-    if (state.phase === 'roll') me.send({ type: 'roll' });
+    if (state.phase === 'roll') { me.send({ type: 'roll' }); rolled++; }
     else {
       const m = chooseMove(state);
       me.send({ type: 'move', token: m.token, kind: m.kind });
@@ -85,8 +86,12 @@ test('a finished game is recorded for the human players, and the winner gets the
 
   const winnerUser = state.winner === 'red' ? anna : ben;
   const loserUser = state.winner === 'red' ? ben : anna;
-  assert.deepEqual(await store.getStats(winnerUser.id), { played: 1, won: 1 });
-  assert.deepEqual(await store.getStats(loserUser.id), { played: 1, won: 0 });
+  const w = await store.getStats(winnerUser.id);
+  const l = await store.getStats(loserUser.id);
+  assert.deepEqual([w.played, w.won, l.played, l.won], [1, 1, 1, 0]);
+  // every press of Roll was counted: the two players' counts add up to the rolls in the log
+  assert.ok(w.diceRolled > 0 && l.diceRolled > 0);
+  assert.equal(w.diceRolled + l.diceRolled, rolled);
 });
 
 test('when a bot wins, the human still gets a played game but no win', async () => {
@@ -113,6 +118,7 @@ test('when a bot wins, the human still gets a played game but no win', async () 
   const stats = await store.getStats(anna.id);
   assert.equal(stats.played, 1);
   assert.equal(stats.won, state.winner === 'red' ? 1 : 0);
+  assert.ok(stats.diceRolled > 0); // only Anna's own rolls, not the bot's
 });
 
 test('a game that nobody wins is not recorded', async () => {
@@ -124,5 +130,5 @@ test('a game that nobody wins is not recorded', async () => {
   a.send({ type: 'addBot' });
   a.send({ type: 'start' });
   a.leave();
-  assert.deepEqual(await store.getStats(anna.id), { played: 0, won: 0 });
+  assert.deepEqual(await store.getStats(anna.id), { played: 0, won: 0, diceRolled: 0 });
 });

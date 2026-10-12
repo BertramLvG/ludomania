@@ -35,7 +35,7 @@
       </button>
       <button class="nav-link" id="rulesBtn" type="button">Rules</button>
       <button class="nav-link hidden" id="leaveBtn" type="button">Leave game</button>
-      <span class="user-chip hidden" id="userChip"></span>
+      <button class="nav-link hidden" id="userChip" type="button" aria-label="Open your profile"></button>
       <button class="nav-link hidden" id="logoutBtn" type="button">Log out</button>
     </nav>
   </header>
@@ -64,7 +64,6 @@
   <section id="menu" class="screen hidden" aria-label="Start">
     <div class="card screen-card">
       <h1 class="screen-title" id="greeting">Play Ludo online</h1>
-      <div class="stats" id="stats" aria-label="Your statistics"></div>
       <div class="row">
         <button id="create" class="btn primary" type="button">Create game</button>
       </div>
@@ -83,6 +82,19 @@
       <h2 class="screen-title small">Leaderboard</h2>
       <ol class="leaderboard" id="leaderboard" aria-label="Top players"></ol>
       <p class="hint" id="leaderboardEmpty">No finished games yet.</p>
+    </div>
+  </section>
+
+  <section id="profile" class="screen hidden" aria-label="Your profile">
+    <div class="card screen-card">
+      <div>
+        <div class="eyebrow">Your profile</div>
+        <h1 class="screen-title" id="profileName"></h1>
+      </div>
+      <div class="stats" id="stats" aria-label="Your statistics"></div>
+      <div class="row">
+        <button id="profileBack" class="btn primary" type="button">Back</button>
+      </div>
     </div>
   </section>
 
