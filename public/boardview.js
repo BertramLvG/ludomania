@@ -106,8 +106,14 @@
 
   // movable: Map of token index -> move kind for my colour. onPick(token) is called when one is chosen.
   // selected: the token index being previewed. preview: { color, to, via } of that token's move, or null.
-  // onConfirm() is called when the highlighted destination square is clicked.
-  function render(state, movable, me, onPick, preview, selected, onConfirm) {
+  // How long a token takes to hop from one square to the next. Used to chain the two hops of a star carry.
+  const HOP_MS = 330;
+  let renderId = 0;
+
+  // onConfirm() is called when a highlighted square of the previewed move is clicked.
+  // events: the events of the latest server message; a move that passed a star is animated through that star.
+  function render(state, movable, me, onPick, preview, selected, onConfirm, events) {
+    const thisRender = ++renderId;
     // bases: a token waits in its slot; an empty slot means that token is out on the board
     COLORS.forEach((color) => {
       const playing = state.colors.includes(color);
@@ -159,7 +165,16 @@
         const picked = can && selected === t.i;
         // a token on a globe cannot be captured (only the track has globes, not the finish lane)
         const safe = t.p <= 50 && B.GLOBES.has((B.START_INDEX[t.color] + t.p) % B.TRACK_LENGTH);
-        place(el, t.sq[0], t.sq[1]);
+        // A token carried from one star to the next hops to the first star, then on to the second.
+        const hop = (events || []).find((ev) => ev.type === 'move' && ev.color === t.color && ev.token === t.i &&
+          ev.via !== undefined && ev.to === t.p);
+        const viaSq = hop && squareOf(t.color, hop.via);
+        if (viaSq) {
+          place(el, viaSq[0], viaSq[1]);
+          setTimeout(() => { if (thisRender === renderId) place(el, t.sq[0], t.sq[1]); }, HOP_MS);
+        } else {
+          place(el, t.sq[0], t.sq[1]);
+        }
         el.className = 'token-on-board' + (can ? ' movable' : '') + (picked ? ' selected' : '') + (isTop ? '' : ' covered');
         el.disabled = !can;
         el.tabIndex = can ? 0 : -1;
@@ -205,8 +220,12 @@
       if (preview.via !== undefined) {
         const vs = targetSquare(preview.color, preview.via);
         if (vs) {
-          const via = document.createElement('div');
+          // the star you land on first can be clicked too: the token still ends up on the next star
+          const via = document.createElement('button');
+          via.type = 'button';
           via.className = 'via';
+          via.setAttribute('aria-label', 'Move here, passing this star');
+          if (onConfirm) via.onclick = onConfirm;
           place(via, vs[0], vs[1]);
           tokenLayer.appendChild(via);
         }

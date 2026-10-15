@@ -432,7 +432,7 @@
     game = { s, myTurn, movable: new Map() };
     if (myTurn && s.phase === 'move') s.moves.forEach((m) => { if (!game.movable.has(m.token)) game.movable.set(m.token, m); });
     selected = game.movable.size === 1 ? [...game.movable.keys()][0] : null;
-    redraw();
+    redraw(msg.events);
   }
 
   /* ---------- Choosing a move: pick a token, see where it goes, then confirm ---------- */
@@ -457,7 +457,7 @@
   }
 
   // Draws the board with the current preview, and sets the main button and the status line.
-  function redraw() {
+  function redraw(events) {
     if (!game) return;
     const { s, myTurn, movable } = game;
     const color = s.colors[s.turn];
@@ -475,7 +475,7 @@
     else $('status').textContent = previewText(move);
 
     BoardView.render(s, movable, me, pickToken,
-      move ? { color: me, to: move.to, via: move.via } : null, selected, confirmMove);
+      move ? { color: me, to: move.to, via: move.via } : null, selected, confirmMove, events);
   }
 
   // Plays the previewed move. Used by the Confirm button and by clicking the highlighted square.

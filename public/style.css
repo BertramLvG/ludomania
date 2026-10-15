@@ -307,7 +307,8 @@ button.brand { background: none; border: 0; padding: 0; color: inherit; font: in
 .dest { padding: 0; background: transparent; border: 3px dashed var(--text); animation: dest-pulse 1.2s ease-in-out infinite; pointer-events: auto; cursor: pointer; z-index: 3; }
 .dest:hover { background: rgba(255,255,255,0.12); }
 .dest .token { width: 70%; height: 70%; opacity: 0.6; box-shadow: inset 0 0 0 4px rgba(255,255,255,0.55); }
-.via { border: 2px dotted var(--muted); }
+.via { padding: 0; background: transparent; border: 3px dashed var(--text); opacity: 0.75; pointer-events: auto; cursor: pointer; z-index: 3; }
+.via:hover { background: rgba(255,255,255,0.12); opacity: 1; }
 @keyframes dest-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
 
 /* Small globe badge: this token sits on a globe and cannot be captured */
