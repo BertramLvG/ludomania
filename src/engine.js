@@ -22,7 +22,6 @@ const DIE = [1, 2, 'star', 4, 'globus', 6];
 //   trap    the owner puts a trap on a plain tile; the first opponent token to land there is sent home
 const SPAWN_WEIGHTS = { reroll: 4, shield: 4, trap: 3, boost: 1 }; // boost is the rarest
 const SPAWN_CHANCE_PER_RATE = 0.05; // spawn rate 1-10 -> 5%-50% chance each time the turn passes
-const START_SQUARES = new Set(Object.values(START_INDEX));
 const PLAIN_SQUARES = [];
 for (let i = 0; i < TRACK_LENGTH; i++) if (!GLOBES.has(i) && !STARS.has(i)) PLAIN_SQUARES.push(i);
 
@@ -225,16 +224,14 @@ function resolveMove(state, move) {
   return events;
 }
 
-// Squares where the current player may put a trap: plain or special tiles, but not coloured start squares,
+// Squares where the current player may put a trap: plain tiles only (not start squares, globes or stars),
 // and not squares that already hold a token, a power-up or a trap.
 function trapSquares(state) {
   const taken = new Set([...state.powerUps.map((p) => p.ring), ...state.traps.map((t) => t.ring)]);
   for (const color of state.colors) {
     state.tokens[color].forEach((p) => { if (isOnTrack(p)) taken.add(ringIndex(color, p)); });
   }
-  const squares = [];
-  for (let i = 0; i < TRACK_LENGTH; i++) if (!START_SQUARES.has(i) && !taken.has(i)) squares.push(i);
-  return squares;
+  return PLAIN_SQUARES.filter((i) => !taken.has(i));
 }
 
 function pickWeighted(items, weights, rng) {

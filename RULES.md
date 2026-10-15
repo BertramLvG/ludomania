@@ -53,7 +53,7 @@ Only when the host turned them on. They lie on the board for everyone to see.
 | Reroll | You roll again once the move is done. |
 | Shield | The token that picked it up is protected like on a globe until its owner's next turn begins (an extra roll from a globus does not end it). An opponent who lands on it is sent home. Leaving the yard onto your own start still captures it. |
 | Speed boost | Kept until your next roll that can move something, then it counts double. Numbers: double the squares (a double that ends on a star carries on as usual). Star: the star two ahead. Globus: a token hops to the globe two ahead, or two tokens leave the yard together. Boosts stack, one is used per roll. |
-| Trap | Right after picking it up you put it on any free tile except the coloured start squares (plain, star and globe tiles are all allowed). It stays until an opponent token lands on it, which sends that token home and removes the trap. Your own tokens pass over it. Everyone can see traps. |
+| Trap | Right after picking it up you put it on any free plain tile (not on start squares, globes or stars, and not where a token, power-up or trap already is). It stays until an opponent token lands on it, which sends that token home and removes the trap. Your own tokens pass over it. Everyone can see traps. |
 
 When a move carries a token through a star or globe (a star carry or a speed boost), only the final square counts for captures, traps and pickups.
 

@@ -92,11 +92,12 @@
 
   <section id="lobby" class="screen hidden" aria-label="Lobby">
     <div class="card screen-card">
-      <div>
+      <div id="roomInfo">
         <div class="eyebrow">Room code</div>
         <div class="room-code" id="roomCode"></div>
         <p class="hint">Share this code with your friends.</p>
       </div>
+      <h1 class="screen-title hidden" id="botTitle">Game against bots</h1>
       <div id="lobbyPlayers" class="chips"></div>
       <div class="settings">
         <h2 class="screen-title small">Game settings</h2>
@@ -212,7 +213,7 @@
       <li>They appear on plain tiles, more often where few tokens are. Land on one to pick it up. Everyone can see them.</li>
       <li><b>Reroll</b>: you roll again after the move.</li>
       <li><b>Shield</b>: the token that picked it up is protected like on a globe until your next turn. An opponent who lands on it goes home.</li>
-      <li><b>Trap</b>: put it on any plain, star or globe tile. It stays until an opponent token lands on it, and that token goes home. Your own tokens are safe.</li>
+      <li><b>Trap</b>: put it on any free plain tile (not a star, globe or start square). It stays until an opponent token lands on it, and that token goes home. Your own tokens are safe.</li>
       <li><b>Speed boost</b> (rare): your next roll counts double. A star or globus roll goes two stars or globes ahead, or brings two tokens out of the base.</li>
     </ul>
     <h3>Connection</h3>

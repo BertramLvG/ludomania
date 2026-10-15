@@ -294,15 +294,26 @@ test('picking up a trap lets you place it before the turn goes on', () => {
   assert.equal(placed.state.turn, 1); // now the turn passes
 });
 
-test('the trap goes on any tile except coloured start squares and occupied or taken ones', () => {
+test('a trap goes on a free plain tile only: not on start squares, globes, stars or taken squares', () => {
   const g = game({ red: [10, YARD, YARD, YARD], green: [relFor('green', 20), YARD, YARD, YARD] });
   g.powerUps.push({ id: 1, type: 'shield', ring: 25 });
   g.traps.push({ ring: 30, owner: 'green' });
   const squares = trapSquares(g);
-  for (const start of Object.values(board.START_INDEX)) assert.ok(!squares.includes(start), 'not a start square');
+  for (const q of squares) {
+    assert.ok(!board.GLOBES.has(q), 'not a globe or start square');
+    assert.ok(!board.STARS.has(q), 'not a star');
+  }
   for (const taken of [ringOf('red', 10), ringOf('red', 20), 25, 30]) assert.ok(!squares.includes(taken));
-  assert.ok(squares.some((q) => board.GLOBES.has(q) && !Object.values(board.START_INDEX).includes(q)), 'globes are allowed');
-  assert.ok(squares.some((q) => board.STARS.has(q)), 'stars are allowed');
+  assert.equal(squares.length, 36 - 4); // 36 plain tiles, minus the two tokens, the power-up and the trap
+});
+
+test('a trap cannot be put on a star or a globe', () => {
+  const g = withPowerUp('trap');
+  const r = roll(g, 2);
+  const m = move(r.state, r.state.moves[0]);
+  for (const special of [...board.STARS, ...board.GLOBES]) {
+    assert.throws(() => placeTrap(m.state, special), /cannot put a trap there/);
+  }
 });
 
 test('a trap cannot be put in a bad place or at the wrong time', () => {

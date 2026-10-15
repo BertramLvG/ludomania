@@ -92,7 +92,8 @@
   $('start').onclick = () => {
     if (!lobbyInfo) return;
     const n = lobbyInfo.players.length;
-    if (n >= 4) return send({ type: 'start' });
+    // a full table, or a game where the bots were already added ("vs Bots"), starts straight away
+    if (n + lobbyInfo.bots >= 4 || lobbyInfo.bots > 0) return send({ type: 'start' });
     $('startText').textContent = 'There ' + (n === 1 ? 'is 1 player' : 'are ' + n + ' players') +
       ' in the lobby. Do you want bots to fill the empty seats, or play with just the people here?';
     $('startAsIs').textContent = 'Play with ' + n + ' players';
@@ -102,6 +103,7 @@
   $('startBots').onclick = () => { $('startDialog').close(); send({ type: 'start', fillBots: true }); };
   $('startAsIs').onclick = () => { $('startDialog').close(); send({ type: 'start' }); };
   $('startCancel').onclick = () => $('startDialog').close();
+  // "vs Bots" opens the same lobby as Host, with three bots already seated, so the settings can be chosen first.
   let soloPending = false;
   $('solo').onclick = () => {
     setError('');
@@ -287,7 +289,6 @@
         if (soloPending) {
           soloPending = false;
           for (let i = 0; i < 3; i++) send({ type: 'addBot' });
-          send({ type: 'start' });
         }
         break;
       case 'lobby': renderLobby(msg); break;
@@ -402,9 +403,14 @@
     for (let i = 0; i < msg.bots; i++) chip('Bot ' + (i + 1));
 
     lobbyInfo = msg;
+    // a game against bots has nobody to invite, so the room code is left out
+    const vsBots = msg.bots > 0 && msg.players.length === 1;
+    $('roomInfo').classList.toggle('hidden', vsBots);
+    $('botTitle').classList.toggle('hidden', !vsBots);
     $('start').classList.toggle('hidden', !msg.youHost);
     $('lobbyHint').textContent = !msg.youHost
       ? 'Waiting for the host to start the game'
+      : vsBots ? 'Choose your settings, then start.'
       : msg.players.length < 2 ? 'Start when ready: alone you play against bots, or wait for a friend to join.' : 'Start whenever you are ready.';
   }
 
