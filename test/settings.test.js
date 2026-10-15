@@ -83,6 +83,38 @@ test('the chosen settings go with the game state', () => {
   assert.deepEqual(b.last('state').state.settings, { powerUps: true, powerUpRate: 2, powerUpMax: 6 });
 });
 
+test('with power-ups on, the public state carries everything the board needs', () => {
+  const hub = createHub();
+  const a = client(hub);
+  a.send({ type: 'create', name: 'Anna' });
+  const b = client(hub);
+  b.send({ type: 'join', code: a.last('joined').code, name: 'Ben' });
+  a.send({ type: 'settings', settings: { powerUps: true } });
+  a.send({ type: 'start' });
+  const s = b.last('state').state;
+  assert.deepEqual(s.powerUps, []);
+  assert.deepEqual(s.traps, []);
+  assert.deepEqual(s.shield.red, [false, false, false, false]);
+  assert.deepEqual(s.boost, { red: 0, yellow: 0 });
+  assert.equal(s.boosted, false);
+  assert.equal(s.placing, null);
+});
+
+test('placing a trap out of turn, or when none is due, is refused', () => {
+  const hub = createHub();
+  const a = client(hub);
+  a.send({ type: 'create', name: 'Anna' });
+  const b = client(hub);
+  b.send({ type: 'join', code: a.last('joined').code, name: 'Ben' });
+  a.send({ type: 'start' });
+  b.send({ type: 'placeTrap', ring: 5 });
+  assert.equal(b.last('error').message, 'Not your turn');
+  a.send({ type: 'placeTrap', ring: 5 });
+  assert.equal(a.last('error').message, 'Not time to place a trap');
+  a.send({ type: 'placeTrap', ring: 'abc' });
+  assert.ok(a.last('error'));
+});
+
 test('garbage in the settings message cannot break the room', () => {
   const hub = createHub();
   const a = client(hub);

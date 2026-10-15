@@ -101,7 +101,7 @@
       <div class="settings">
         <h2 class="screen-title small">Game settings</h2>
         <div id="settingsControls"></div>
-        <p class="hint" id="settingsNote">Power-ups are not active yet. The settings are saved, but nothing appears on the board.</p>
+        <p class="hint" id="settingsNote">Power-ups appear on plain tiles: Reroll, Shield, Trap and the rare Speed boost. You pick one up by landing on it.</p>
       </div>
       <div class="row">
         <button id="start" class="btn primary" type="button">Start game</button>
@@ -136,6 +136,7 @@
           <div class="roll-col">
             <button class="roll-btn" id="roll" type="button">Roll</button>
             <div class="status" id="status" aria-live="polite"></div>
+            <div class="boost-note" id="boostNote"></div>
           </div>
         </div>
         <div class="trail" id="trail" aria-label="Earlier rolls this turn"></div>
@@ -145,6 +146,11 @@
       <div class="card players" id="players" aria-label="Players"></div>
     </aside>
   </main>
+</div>
+
+<div class="toast hidden" id="toast" role="status" aria-live="polite">
+  <div class="toast-title" id="toastTitle"></div>
+  <div class="toast-text" id="toastText"></div>
 </div>
 
 <dialog id="joinDialog" aria-labelledby="joinTitle">
@@ -200,6 +206,14 @@
     <ul>
       <li>You need the exact roll to reach the centre. Extra steps bounce back.</li>
       <li>Only a globus gives another roll. Captures and reaching the centre do not.</li>
+    </ul>
+    <h3>Power-ups (if the host turned them on)</h3>
+    <ul>
+      <li>They appear on plain tiles, more often where few tokens are. Land on one to pick it up. Everyone can see them.</li>
+      <li><b>Reroll</b>: you roll again after the move.</li>
+      <li><b>Shield</b>: the token that picked it up is protected like on a globe until your next turn. An opponent who lands on it goes home.</li>
+      <li><b>Trap</b>: put it on any plain, star or globe tile. It stays until an opponent token lands on it, and that token goes home. Your own tokens are safe.</li>
+      <li><b>Speed boost</b> (rare): your next roll counts double. A star or globus roll goes two stars or globes ahead, or brings two tokens out of the base.</li>
     </ul>
     <h3>Connection</h3>
     <ul>

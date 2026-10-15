@@ -1,8 +1,8 @@
 'use strict';
 
 const crypto = require('node:crypto');
-const { createGame, currentColor, roll, move } = require('./engine');
-const { chooseMove } = require('./bot');
+const { createGame, currentColor, roll, move, placeTrap, trapSquares } = require('./engine');
+const { chooseMove, chooseTrapSquare } = require('./bot');
 const settings = require('./settings');
 
 const CODE_LETTERS = 'ABCDEFGHJKLMNPQRSTUVWXYZ'; // no I or O
@@ -26,6 +26,9 @@ function publicState(room) {
     colors: s.colors, tokens: s.tokens, turn: s.turn, phase: s.phase,
     face: s.face, moves: s.moves, winner: s.winner, bots: [...room.bots], away, names,
     settings: room.settings,
+    // power-ups: everything on the board is public
+    powerUps: s.powerUps, traps: s.traps, shield: s.shield, boost: s.boost, boosted: s.boosted,
+    placing: s.phase === 'place' ? { color: s.colors[s.turn], squares: trapSquares(s) } : null,
   };
 }
 
@@ -94,7 +97,9 @@ function createHub({
   function botStep(room) {
     const s = room.state;
     if (!rooms.has(room.code) || s.winner || !room.bots.has(currentColor(s))) return;
-    const result = s.phase === 'roll' ? roll(s) : move(s, chooseMove(s));
+    const result = s.phase === 'roll' ? roll(s)
+      : s.phase === 'place' ? placeTrap(s, chooseTrapSquare(s))
+      : move(s, chooseMove(s));
     room.state = result.state;
     broadcast(room, stateMsg(room, result.events));
     finishIfDone(room);
@@ -191,7 +196,7 @@ function createHub({
         room.bots.add(color);
         room.botNames[color] = 'Bot ' + (i + 1);
       }
-      room.state = createGame(seats, secureRng);
+      room.state = createGame(seats, secureRng, room.settings);
       room.players.forEach((p) => sendTo(p, { type: 'started', you: p.color, secret: p.secret }));
       broadcast(room, stateMsg(room));
       scheduleBot(room);
@@ -221,6 +226,17 @@ function createHub({
       if (conn.user) room.rolls[conn.user.id] = (room.rolls[conn.user.id] || 0) + 1; // every press of Roll counts
       broadcast(room, stateMsg(room, result.events));
       finishIfDone(room);
+      scheduleBot(room);
+    },
+
+    // After picking up a trap the player chooses a square (ring index) for it.
+    placeTrap(conn, msg) {
+      const room = conn.room;
+      if (!room || !room.state) return fail(conn, 'No game in progress');
+      if (currentColor(room.state) !== conn.color) return fail(conn, 'Not your turn');
+      const result = placeTrap(room.state, Number(msg.ring));
+      room.state = result.state;
+      broadcast(room, stateMsg(room, result.events));
       scheduleBot(room);
     },
 

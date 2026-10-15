@@ -264,6 +264,11 @@
       case 'captured': return who(ev.color) + "'s token landed on a defended square and went home";
       case 'win': return who(ev.color) + ' wins!';
       case 'bot': return who(ev.color) + ' did not come back in time. A bot now plays that seat';
+      case 'spawn': return 'A ' + BoardView.POWER_UPS[ev.kind].name.toLowerCase() + ' appeared on the board';
+      case 'pickup': return who(ev.color) + ' picked up a ' + BoardView.POWER_UPS[ev.kind].name.toLowerCase();
+      case 'trapSet': return who(ev.color) + ' set a trap';
+      case 'trapped': return who(ev.color) + "'s token hit " + who(ev.owner) + "'s trap and went home";
+      case 'shieldEnd': return who(ev.color) + "'s shield ran out";
       default: return null;
     }
   }
@@ -397,12 +402,10 @@
     for (let i = 0; i < msg.bots; i++) chip('Bot ' + (i + 1));
 
     lobbyInfo = msg;
-    const enough = msg.players.length + msg.bots >= 2;
     $('start').classList.toggle('hidden', !msg.youHost);
-    $('start').disabled = !enough;
     $('lobbyHint').textContent = !msg.youHost
       ? 'Waiting for the host to start the game'
-      : enough ? 'Start whenever you are ready.' : 'Waiting for one more player to join.';
+      : msg.players.length < 2 ? 'Start when ready: alone you play against bots, or wait for a friend to join.' : 'Start whenever you are ready.';
   }
 
   function renderLog() {
@@ -411,6 +414,25 @@
       const li = document.createElement('li');
       li.textContent = t;
       $('log').appendChild(li);
+    });
+  }
+
+  /* ---------- Pickup message ---------- */
+  let toastTimer = null;
+  function showToast(title, text) {
+    $('toastTitle').textContent = title;
+    $('toastText').textContent = text;
+    $('toast').classList.remove('hidden');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => $('toast').classList.add('hidden'), 4500);
+  }
+
+  // Everyone sees what was picked up; the player who picked it up is told what it does.
+  function announcePickups(events, names) {
+    events.filter((ev) => ev.type === 'pickup').forEach((ev) => {
+      const info = BoardView.POWER_UPS[ev.kind];
+      if (ev.color === me) showToast('You picked up a ' + info.name + '!', info.text);
+      else showToast((names[ev.color] || ev.color) + ' picked up a ' + info.name, info.text);
     });
   }
 
@@ -483,12 +505,23 @@
 
   function resetRolls() { earlier = []; runColor = null; runOpen = false; lastFace = null; renderTrail(false); }
 
+  // A line under the status when the player whose turn it is has a speed boost waiting or in use.
+  function renderBoostNote(s, color) {
+    const note = $('boostNote');
+    const mine = color === me;
+    if (s.winner || !s.boost) { note.textContent = ''; return; }
+    if (s.boosted) note.textContent = (mine ? 'Speed boost: this roll counts double' : s.names[color] + ' is using a speed boost');
+    else if (s.boost[color] > 0) note.textContent = mine ? 'Speed boost ready: your next roll counts double' : s.names[color] + ' has a speed boost ready';
+    else note.textContent = '';
+  }
+
   /* ---------- Game state ---------- */
   function applyState(msg) {
     const s = msg.state;
     setError('');
     msg.events.forEach((ev) => { const t = describe(ev, s.names); if (t) log.unshift(t); });
     renderLog();
+    announcePickups(msg.events, s.names);
 
     const color = s.colors[s.turn];
     const myTurn = !s.winner && color === me;
@@ -507,6 +540,8 @@
     const grew = trackRolls(msg.events);
     renderTrail(grew);
     setDie(diceEl, s.face);
+    diceEl.classList.toggle('boosted', Boolean(s.boosted)); // this roll counts double
+    renderBoostNote(s, color);
 
     if (s.winner) {
       clearSession();
@@ -531,14 +566,20 @@
   }
 
   function previewText(m) {
-    let text = m.kind === 'enter' ? 'Bring this token out onto your start globe'
-      : m.to === 56 ? 'This token reaches the centre'
-      : m.via !== undefined ? 'Lands on a star and is carried to the next star'
-      : m.kind === 'globe' ? 'This token hops to the next globe'
-      : m.kind === 'star' ? 'This token jumps to the next star'
-      : 'This token moves to the marked square';
+    let text;
+    if (m.kind === 'enter') text = m.second !== undefined ? 'Speed boost: two tokens come out onto your start globe' : 'Bring this token out onto your start globe';
+    else if (m.to === 56) text = 'This token reaches the centre';
+    else if (m.boosted && m.via !== undefined && (m.kind === 'star' || m.kind === 'globe')) {
+      text = 'Speed boost: this token moves two ' + (m.kind === 'star' ? 'stars' : 'globes') + ' ahead';
+    } else if (m.via !== undefined) text = 'Lands on a star and is carried to the next star';
+    else if (m.kind === 'globe') text = 'This token hops to the next globe';
+    else if (m.kind === 'star') text = 'This token jumps to the next star';
+    else text = 'This token moves to the marked square';
+    if (m.boosted && m.kind === 'step') text += ' (doubled by your speed boost)';
+    if (m.pickup) text += ' and picks up a ' + BoardView.POWER_UPS[m.pickup].name.toLowerCase();
     if (m.captures > 0) text += ' and sends ' + (m.captures > 1 ? m.captures + ' tokens' : 'a token') + ' home';
-    if (m.sentHome) text += '. Careful: it would be sent home (defended square or a globe)';
+    if (m.trapped) text += '. Careful: it would hit a trap and be sent home';
+    else if (m.sentHome) text += '. Careful: it would be sent home (defended square, globe or shield)';
     return text + '.';
   }
 
@@ -555,13 +596,16 @@
     btn.disabled = choosing ? !move : !(myTurn && s.phase === 'roll');
 
     if (s.winner) $('status').textContent = '';
-    else if (!myTurn) $('status').textContent = s.names[color] + "'s turn";
+    else if (s.phase === 'place') {
+      $('status').textContent = myTurn ? 'Pick a tile for your trap' : s.names[color] + ' is placing a trap';
+    } else if (!myTurn) $('status').textContent = s.names[color] + "'s turn";
     else if (s.phase === 'roll') $('status').textContent = 'Your turn - tap Roll';
     else if (!move) $('status').textContent = 'Pick a token to see where it goes';
     else $('status').textContent = previewText(move);
 
     BoardView.render(s, movable, me, pickToken,
-      move ? { color: me, to: move.to, via: move.via } : null, selected, confirmMove, events);
+      move ? { color: me, to: move.to, via: move.via } : null, selected, confirmMove,
+      { events, onPlace: (ring) => send({ type: 'placeTrap', ring }) });
   }
 
   // Plays the previewed move. Used by the Confirm button and by clicking the highlighted square.
@@ -604,7 +648,8 @@
       nm.textContent = s.names[c] + (c === me ? ' (you)' : '');
       const sub = document.createElement('div');
       sub.className = 'player-sub';
-      const tags = (s.bots.includes(c) ? 'Bot · ' : '') + (s.away.includes(c) ? 'Away, can rejoin · ' : '');
+      const tags = (s.bots.includes(c) ? 'Bot · ' : '') + (s.away.includes(c) ? 'Away, can rejoin · ' : '') +
+        (s.boost && s.boost[c] > 0 ? 'Boost ready · ' : '');
       sub.textContent = tags + inBase + ' in base · ' + onBoard + ' on board';
       info.append(nm, sub);
 

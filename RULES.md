@@ -39,7 +39,23 @@ If no legal move exists, the turn is skipped.
 
 ## Game settings
 The host chooses settings in the lobby before the game starts, and the other players can see them. They are defined in `src/settings.js`, and the lobby draws its controls from that list.
-- **Power-ups** (on/off), **spawn rate** (1-10) and **most on the board at once** (1-8). The settings are saved and sent with the game, but the power-ups themselves are not built yet.
+- **Power-ups** (on/off), **spawn rate** (1-10) and **most on the board at once** (1-8).
+
+## Power-ups
+Only when the host turned them on. They lie on the board for everyone to see.
+
+**Spawning.** Each time the turn passes, there is a chance (5% per rate step, so 5-50%) that a power-up appears, as long as fewer than the chosen maximum are on the board. It appears on a free plain tile (not a start square, globe, star or finish lane). Tiles far from tokens on the track are more likely, since each tile's weight is 1 plus its distance to the nearest token. The kinds are weighted 4 Reroll, 4 Shield, 3 Trap and 1 Speed boost, so the boost is the rarest.
+
+**Picking up.** Landing on a power-up (as the final square of a move) picks it up. A token that is sent home when it lands picks up nothing.
+
+| Power-up | Effect |
+|---|---|
+| Reroll | You roll again once the move is done. |
+| Shield | The token that picked it up is protected like on a globe until its owner's next turn begins (an extra roll from a globus does not end it). An opponent who lands on it is sent home. Leaving the yard onto your own start still captures it. |
+| Speed boost | Kept until your next roll that can move something, then it counts double. Numbers: double the squares (a double that ends on a star carries on as usual). Star: the star two ahead. Globus: a token hops to the globe two ahead, or two tokens leave the yard together. Boosts stack, one is used per roll. |
+| Trap | Right after picking it up you put it on any free tile except the coloured start squares (plain, star and globe tiles are all allowed). It stays until an opponent token lands on it, which sends that token home and removes the trap. Your own tokens pass over it. Everyone can see traps. |
+
+When a move carries a token through a star or globe (a star carry or a speed boost), only the final square counts for captures, traps and pickups.
 
 ## Disconnects
 - A player who loses connection (or reloads the page) can rejoin their seat within 60 seconds. The game waits for them if it is their turn.
