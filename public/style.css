@@ -341,9 +341,9 @@ button.brand { background: none; border: 0; padding: 0; color: inherit; font: in
   box-shadow: 0 0 0 3px var(--panel);
 }
 
-/* Power-ups, traps and trap targets lie under the tokens */
+/* Power-ups lie under the tokens */
 .items { position: absolute; inset: 0; pointer-events: none; }
-.powerup, .trap, .place-target {
+.powerup {
   position: absolute; display: flex; align-items: center; justify-content: center; padding: 0;
   width: calc((100% - 14 * var(--board-gap)) / 15); height: calc((100% - 14 * var(--board-gap)) / 15);
   border-radius: var(--cell-radius);
@@ -352,14 +352,6 @@ button.brand { background: none; border: 0; padding: 0; color: inherit; font: in
 .powerup svg { width: 66%; height: 66%; fill: none; stroke: var(--page); stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
 .powerup { background: var(--text); box-shadow: inset 0 -3px 0 rgba(0,0,0,0.25); animation: powerup-bob 1.6s ease-in-out infinite; }
 @keyframes powerup-bob { 0%, 100% { transform: scale(0.92); } 50% { transform: scale(1.04); } }
-.trap { border: 3px solid var(--text); background: rgba(0,0,0,0.25); pointer-events: auto; }
-.trap svg { width: 64%; height: 64%; fill: none; stroke: var(--text); stroke-width: 2.4; stroke-linecap: round; }
-.trap.red { border-color: var(--red); } .trap.red svg { stroke: var(--red); }
-.trap.green { border-color: var(--green); } .trap.green svg { stroke: var(--green); }
-.trap.yellow { border-color: var(--yellow); } .trap.yellow svg { stroke: var(--yellow); }
-.trap.blue { border-color: var(--blue); } .trap.blue svg { stroke: var(--blue); }
-.place-target { pointer-events: auto; cursor: pointer; background: rgba(255,255,255,0.10); border: 2px dashed var(--text); z-index: 3; }
-.place-target:hover, .place-target:focus-visible { background: rgba(255,255,255,0.35); }
 
 /* The token being previewed, and where it would land */
 .movable.selected .token { outline-width: 4px; animation: none; transform: scale(1.12); }

@@ -4,9 +4,9 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const board = require('../src/board');
 const {
-  createGame, roll, move, placeTrap, trapSquares, maybeSpawn, legalMoves, ringIndex, YARD, HOME, SPAWN_WEIGHTS,
+  createGame, roll, move, maybeSpawn, ringIndex, YARD, SPAWN_WEIGHTS,
 } = require('../src/engine');
-const { chooseMove, chooseTrapSquare } = require('../src/bot');
+const { chooseMove } = require('../src/bot');
 
 const ON = { powerUps: true, powerUpRate: 10, powerUpMax: 8 };
 
@@ -65,16 +65,14 @@ test('the spawn rate sets how often: rate 1 is rare, rate 10 is frequent', () =>
 test('power-ups only spawn on plain tiles that are free', () => {
   const rng = seeded(3);
   const g = game({ red: [3, 10, YARD, YARD], green: [relFor('green', 20), YARD, YARD, YARD] }, ON, rng);
-  g.traps.push({ ring: 30, owner: 'red' });
-  const occupied = new Set([ringOf('red', 3), ringOf('red', 10), ringOf('red', 20), 30]);
+  const occupied = new Set([ringOf('red', 3), ringOf('red', 10), ringOf('red', 20)]);
   for (let i = 0; i < 500; i++) {
     const s = game({ red: g.tokens.red, green: g.tokens.green }, ON, rng);
-    s.traps = g.traps;
     const events = maybeSpawn(s);
     for (const e of events) {
       assert.ok(!board.GLOBES.has(e.ring), 'not on a globe or start square');
       assert.ok(!board.STARS.has(e.ring), 'not on a star');
-      assert.ok(!occupied.has(e.ring), 'not on a token or a trap');
+      assert.ok(!occupied.has(e.ring), 'not on a token');
     }
   }
 });
@@ -103,12 +101,12 @@ test('spawns lean towards parts of the map with few tokens', () => {
 
 test('the speed boost is the rarest power-up', () => {
   const rng = seeded(5);
-  const counts = { reroll: 0, shield: 0, trap: 0, boost: 0 };
+  const counts = { reroll: 0, shield: 0, boost: 0 };
   for (let i = 0; i < 4000; i++) {
     const [e] = maybeSpawn(game({}, { ...ON, powerUpRate: 10 }, rng));
     if (e) counts[e.kind]++;
   }
-  const others = ['reroll', 'shield', 'trap'];
+  const others = ['reroll', 'shield'];
   for (const k of others) assert.ok(counts.boost < counts[k] / 2, 'boost ' + counts.boost + ' vs ' + k + ' ' + counts[k]);
   assert.equal(Math.min(...Object.values(SPAWN_WEIGHTS)), SPAWN_WEIGHTS.boost);
 });
@@ -277,104 +275,27 @@ test('without a boost a roll is normal even when a boost is waiting for another 
   assert.equal(roll(g, 2).state.moves[0].to, 12);
 });
 
-// ---------- traps ----------
 
-test('picking up a trap lets you place it before the turn goes on', () => {
-  const r = roll(withPowerUp('trap'), 2);
-  const m = move(r.state, r.state.moves[0]);
-  assert.equal(m.state.phase, 'place');
-  assert.equal(m.state.turn, 0);
-  assert.throws(() => roll(m.state, 1), /Not time to roll/);
+// ---------- no traps ----------
 
-  const squares = trapSquares(m.state);
-  const target = squares.find((q) => !board.GLOBES.has(q) && !board.STARS.has(q));
-  const placed = placeTrap(m.state, target);
-  assert.deepEqual(placed.state.traps, [{ ring: target, owner: 'red' }]);
-  assert.equal(placed.state.phase, 'roll');
-  assert.equal(placed.state.turn, 1); // now the turn passes
-});
-
-test('a trap goes on a free plain tile only: not on start squares, globes, stars or taken squares', () => {
-  const g = game({ red: [10, YARD, YARD, YARD], green: [relFor('green', 20), YARD, YARD, YARD] });
-  g.powerUps.push({ id: 1, type: 'shield', ring: 25 });
-  g.traps.push({ ring: 30, owner: 'green' });
-  const squares = trapSquares(g);
-  for (const q of squares) {
-    assert.ok(!board.GLOBES.has(q), 'not a globe or start square');
-    assert.ok(!board.STARS.has(q), 'not a star');
+test('there is no trap power-up any more', () => {
+  assert.ok(!('trap' in SPAWN_WEIGHTS));
+  const rng = seeded(9);
+  for (let i = 0; i < 500; i++) {
+    const [e] = maybeSpawn(game({}, { ...ON, powerUpRate: 10 }, rng));
+    if (e) assert.notEqual(e.kind, 'trap');
   }
-  for (const taken of [ringOf('red', 10), ringOf('red', 20), 25, 30]) assert.ok(!squares.includes(taken));
-  assert.equal(squares.length, 36 - 4); // 36 plain tiles, minus the two tokens, the power-up and the trap
-});
-
-test('a trap cannot be put on a star or a globe', () => {
-  const g = withPowerUp('trap');
-  const r = roll(g, 2);
-  const m = move(r.state, r.state.moves[0]);
-  for (const special of [...board.STARS, ...board.GLOBES]) {
-    assert.throws(() => placeTrap(m.state, special), /cannot put a trap there/);
-  }
-});
-
-test('a trap cannot be put in a bad place or at the wrong time', () => {
-  const g = withPowerUp('trap');
-  assert.throws(() => placeTrap(g, 7), /Not time to place a trap/);
-  const r = roll(g, 2);
-  const m = move(r.state, r.state.moves[0]);
-  assert.throws(() => placeTrap(m.state, board.START_INDEX.red), /cannot put a trap there/);
-  assert.throws(() => placeTrap(m.state, ringOf('red', PLAIN_RED)), /cannot put a trap there/); // red's own token stands there
-});
-
-test('after placing a trap, a player who earned another roll keeps the turn', () => {
-  const g = withPowerUp('trap');
-  const m = move(...(() => { const r = roll(g, 2); return [r.state, r.state.moves[0]]; })());
-  m.state.keepTurn = true;
-  const placed = placeTrap(m.state, trapSquares(m.state)[0]);
-  assert.equal(placed.state.turn, 0);
-});
-
-test('an opponent who lands on a trap is sent home and the trap is gone', () => {
-  const trapRing = ringOf('red', 22);
-  const g = game({ red: [YARD, YARD, YARD, YARD], green: [relFor('green', 20), YARD, YARD, YARD] });
-  g.turn = 1;
-  g.traps.push({ ring: trapRing, owner: 'red' });
-  const r = roll(g, 2); // green moves two squares onto the trap
-  assert.equal(relFor('green', 22), g.tokens.green[0] + 2);
-  assert.equal(r.state.moves[0].trapped, true); // visible in the preview
-  const m = move(r.state, r.state.moves[0]);
-  assert.equal(m.state.tokens.green[0], YARD);
-  assert.deepEqual(m.state.traps, []);
-  const ev = m.events.find((e) => e.type === 'trapped');
-  assert.deepEqual([ev.color, ev.owner], ['green', 'red']);
-});
-
-test('the owner\'s own tokens walk over their trap without setting it off', () => {
-  const g = game({ red: [10, YARD, YARD, YARD] });
-  g.traps.push({ ring: ringOf('red', 14), owner: 'red' });
-  const m = move(...(() => { const r = roll(g, 4); return [r.state, r.state.moves[0]]; })());
-  assert.equal(m.state.tokens.red[0], 14);
-  assert.equal(m.state.traps.length, 1);
+  const g = game();
+  assert.equal(g.traps, undefined);
+  assert.equal(g.placing, undefined);
 });
 
 // ---------- bots ----------
 
-test('a bot puts its trap just ahead of opponent tokens', () => {
-  const g = game({ red: [10, YARD, YARD, YARD], green: [relFor('green', 30), YARD, YARD, YARD] });
-  g.phase = 'place';
-  g.placing = { color: 'red' };
-  const ring = chooseTrapSquare(g, () => 0.1);
-  const gap = (ring - ringOf('green', relFor('green', 30)) + 52) % 52;
-  assert.ok([1, 2, 4, 6].includes(gap), 'trap is within one roll of the opponent, gap ' + gap);
-});
-
-test('a bot likes picking up power-ups and avoids walking onto a trap', () => {
+test('a bot likes picking up power-ups', () => {
   const g = game({ red: [10, 30, YARD, YARD] });
   g.powerUps.push({ id: 1, type: 'boost', ring: ringOf('red', 12) });
   assert.equal(chooseMove(roll(g, 2).state).token, 0);
-
-  const t = game({ red: [10, 30, YARD, YARD], green: [YARD, YARD, YARD, YARD] });
-  t.traps.push({ ring: ringOf('red', 12), owner: 'green' });
-  assert.equal(chooseMove(roll(t, 2).state).token, 1);
 });
 
 // ---------- a whole game ----------
@@ -383,12 +304,9 @@ test('four bots can play a full game with power-ups on, and the board stays cons
   const rng = seeded(2024);
   let state = createGame(['red', 'green', 'yellow', 'blue'], rng, { powerUps: true, powerUpRate: 10, powerUpMax: 8 });
   let spawned = 0;
-  const seen = { reroll: 0, shield: 0, trap: 0, boost: 0 };
+  const seen = { reroll: 0, shield: 0, boost: 0 };
   for (let i = 0; i < 60000 && !state.winner; i++) {
-    let r;
-    if (state.phase === 'roll') r = roll(state);
-    else if (state.phase === 'move') r = move(state, chooseMove(state, rng));
-    else r = placeTrap(state, chooseTrapSquare(state, rng));
+    const r = state.phase === 'roll' ? roll(state) : move(state, chooseMove(state, rng));
     state = r.state;
     for (const e of r.events) {
       if (e.type === 'spawn') spawned++;

@@ -93,26 +93,20 @@ test('with power-ups on, the public state carries everything the board needs', (
   a.send({ type: 'start' });
   const s = b.last('state').state;
   assert.deepEqual(s.powerUps, []);
-  assert.deepEqual(s.traps, []);
   assert.deepEqual(s.shield.red, [false, false, false, false]);
   assert.deepEqual(s.boost, { red: 0, yellow: 0 });
   assert.equal(s.boosted, false);
-  assert.equal(s.placing, null);
 });
 
-test('placing a trap out of turn, or when none is due, is refused', () => {
+test('the trap message no longer exists', () => {
   const hub = createHub();
   const a = client(hub);
   a.send({ type: 'create', name: 'Anna' });
   const b = client(hub);
   b.send({ type: 'join', code: a.last('joined').code, name: 'Ben' });
   a.send({ type: 'start' });
-  b.send({ type: 'placeTrap', ring: 5 });
-  assert.equal(b.last('error').message, 'Not your turn');
   a.send({ type: 'placeTrap', ring: 5 });
-  assert.equal(a.last('error').message, 'Not time to place a trap');
-  a.send({ type: 'placeTrap', ring: 'abc' });
-  assert.ok(a.last('error'));
+  assert.equal(a.last('error').message, 'Unknown message');
 });
 
 test('garbage in the settings message cannot break the room', () => {

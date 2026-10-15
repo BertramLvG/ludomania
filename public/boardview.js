@@ -23,16 +23,12 @@
       name: 'Speed boost', text: 'Your next roll counts double.',
       icon: '<path d="M13 3L5 14h6l-1 7 8-11h-6z"/>',
     },
-    trap: {
-      name: 'Trap', text: 'Put it on a tile. The first opponent token to land there is sent home.',
-      icon: '<circle cx="12" cy="12" r="4"/><path d="M12 3v4M12 17v4M3 12h4M17 12h4"/>',
-    },
   };
   const iconSvg = (type) => '<svg viewBox="0 0 24 24" aria-hidden="true">' + POWER_UPS[type].icon + '</svg>';
 
   let slots = {};      // color -> [4 slot elements]
   let bases = {};      // color -> base element
-  let itemLayer = null;   // power-ups, traps and trap targets, below the tokens
+  let itemLayer = null;   // power-ups, below the tokens
   let tokenLayer = null;
   const boardTokens = new Map(); // "color-index" -> element, kept so tokens can glide between squares
 
@@ -138,7 +134,6 @@
 
   // onConfirm() is called when a highlighted square of the previewed move is clicked.
   // options.events: the events of the latest server message; a move that passed a star is animated through that star.
-  // options.onPlace(ring): called when a square is chosen for a trap.
   function render(state, movable, me, onPick, preview, selected, onConfirm, options = {}) {
     const thisRender = ++renderId;
     const events = options.events;
@@ -243,7 +238,7 @@
       if (!seen.has(id)) { el.remove(); boardTokens.delete(id); }
     });
 
-    // Power-ups and traps lie on the board for everyone to see. While you place a trap, the free squares are clickable.
+    // Power-ups lie on the board for everyone to see.
     itemLayer.textContent = '';
     const ringSquare = (ring) => B.RING_XY[ring];
     (state.powerUps || []).forEach((item) => {
@@ -257,29 +252,6 @@
       place(el, x, y);
       itemLayer.appendChild(el);
     });
-    (state.traps || []).forEach((trap) => {
-      const [x, y] = ringSquare(trap.ring);
-      const el = document.createElement('div');
-      el.className = 'trap ' + trap.owner;
-      el.setAttribute('role', 'img');
-      el.setAttribute('aria-label', trap.owner + ' trap');
-      el.title = 'A trap set by ' + trap.owner + ': the first opponent token to land here is sent home.';
-      el.innerHTML = iconSvg('trap');
-      place(el, x, y);
-      itemLayer.appendChild(el);
-    });
-    if (state.placing && state.placing.color === me && options.onPlace) {
-      state.placing.squares.forEach((ring) => {
-        const [x, y] = ringSquare(ring);
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'place-target';
-        btn.setAttribute('aria-label', 'Put the trap on this square');
-        btn.onclick = () => options.onPlace(ring);
-        place(btn, x, y);
-        itemLayer.appendChild(btn);
-      });
-    }
 
     // Preview of the selected move: a ghost token where it will land (and the star it passes on the way).
     tokenLayer.querySelectorAll('.dest, .via').forEach((e) => e.remove());

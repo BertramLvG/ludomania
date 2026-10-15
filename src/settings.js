@@ -6,7 +6,7 @@
 //   toggle: on/off              slider: a whole number between min and max
 //   requires: only active while that toggle is on
 const DEFINITIONS = [
-  { key: 'powerUps', type: 'toggle', label: 'Power-ups', hint: 'Reroll, Shield, Trap and Speed boost appear on the board.', default: false },
+  { key: 'powerUps', type: 'toggle', label: 'Power-ups', hint: 'Reroll, Shield and Speed boost appear on the board.', default: false },
   {
     key: 'powerUpRate', type: 'slider', label: 'Spawn rate', min: 1, max: 10, step: 1, default: 5,
     low: 'Rare', high: 'Frequent', requires: 'powerUps',

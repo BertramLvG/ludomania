@@ -19,8 +19,7 @@ const DIE = [1, 2, 'star', 4, 'globus', 6];
 //   reroll  an extra roll once the move is done
 //   shield  protects that token like a globe until the owner's next turn
 //   boost   the owner's next roll counts double
-//   trap    the owner puts a trap on a plain tile; the first opponent token to land there is sent home
-const SPAWN_WEIGHTS = { reroll: 4, shield: 4, trap: 3, boost: 1 }; // boost is the rarest
+const SPAWN_WEIGHTS = { reroll: 4, shield: 4, boost: 1 }; // boost is the rarest
 const SPAWN_CHANCE_PER_RATE = 0.05; // spawn rate 1-10 -> 5%-50% chance each time the turn passes
 const PLAIN_SQUARES = [];
 for (let i = 0; i < TRACK_LENGTH; i++) if (!GLOBES.has(i) && !STARS.has(i)) PLAIN_SQUARES.push(i);
@@ -45,12 +44,9 @@ function createGame(colors, rng = Math.random, settings = {}) {
     colors: [...colors], tokens, turn: 0, phase: 'roll', face: null, moves: [], winner: null, attempts: 0, rng,
     settings: gameSettings.normalize(settings),
     powerUps: [],        // on the board: { id, type, ring }
-    traps: [],           // placed: { ring, owner }
     shield, boost,       // shield[color][token] is true while shielded; boost[color] counts boosts waiting
     boosted: false,      // the roll in progress counts double
     extraRoll: false,    // a reroll was picked up this move
-    placing: null,       // { color } while that player must put down a trap
-    keepTurn: false,     // whether the player rolls again once the trap is placed
     nextPowerUpId: 1,
   };
 }
@@ -151,8 +147,7 @@ function legalMoves(state, face) {
     const probe = cloneState(state);
     const events = resolveMove(probe, m);
     m.captures = events.filter((e) => e.type === 'capture').length;
-    m.trapped = events.some((e) => e.type === 'trapped');
-    m.sentHome = m.trapped || events.some((e) => e.type === 'captured');
+    m.sentHome = events.some((e) => e.type === 'captured');
     const pickup = events.find((e) => e.type === 'pickup');
     if (pickup) m.pickup = pickup.kind;
   }
@@ -177,15 +172,6 @@ function resolveMove(state, move) {
   if (!isOnTrack(move.to)) return events;
 
   const ring = ringIndex(color, move.to);
-
-  // A trap sends the first opponent token that lands on it home. The owner's own tokens are not affected.
-  const trapAt = state.traps.findIndex((t) => t.ring === ring && t.owner !== color);
-  if (trapAt !== -1) {
-    const [trap] = state.traps.splice(trapAt, 1);
-    sendHome(state, color, move.token);
-    events.push({ type: 'trapped', color, token: move.token, owner: trap.owner, ring });
-    return events;
-  }
 
   const others = occupantsAt(state, ring, color);
   if (others.length > 0) {
@@ -219,19 +205,8 @@ function resolveMove(state, move) {
     if (item.type === 'reroll') state.extraRoll = true;
     else if (item.type === 'shield') state.shield[color][move.token] = true;
     else if (item.type === 'boost') state.boost[color] += 1;
-    else if (item.type === 'trap') state.placing = { color };
   }
   return events;
-}
-
-// Squares where the current player may put a trap: plain tiles only (not start squares, globes or stars),
-// and not squares that already hold a token, a power-up or a trap.
-function trapSquares(state) {
-  const taken = new Set([...state.powerUps.map((p) => p.ring), ...state.traps.map((t) => t.ring)]);
-  for (const color of state.colors) {
-    state.tokens[color].forEach((p) => { if (isOnTrack(p)) taken.add(ringIndex(color, p)); });
-  }
-  return PLAIN_SQUARES.filter((i) => !taken.has(i));
 }
 
 function pickWeighted(items, weights, rng) {
@@ -250,7 +225,7 @@ function maybeSpawn(state) {
   if (!s.powerUps || state.powerUps.length >= s.powerUpMax) return [];
   if (state.rng() >= s.powerUpRate * SPAWN_CHANCE_PER_RATE) return [];
 
-  const taken = new Set([...state.powerUps.map((p) => p.ring), ...state.traps.map((t) => t.ring)]);
+  const taken = new Set(state.powerUps.map((p) => p.ring));
   const tokenRings = [];
   for (const color of state.colors) {
     state.tokens[color].forEach((p) => { if (isOnTrack(p)) tokenRings.push(ringIndex(color, p)); });
@@ -289,8 +264,6 @@ function finishTurn(state, keep, events) {
   else events.push(...nextTurn(state));
   state.phase = 'roll';
   state.moves = [];
-  state.placing = null;
-  state.keepTurn = false;
 }
 
 // Phase "roll" -> rolls the die (face may be injected for tests). Passes the turn if nothing can move.
@@ -339,26 +312,9 @@ function move(state, choice) {
     events.push({ type: 'win', color });
     next.phase = 'roll';
     next.moves = [];
-  } else if (next.placing) {
-    // picked up a trap: the player puts it down before the turn goes on
-    next.phase = 'place';
-    next.keepTurn = keep;
-    next.moves = [];
   } else {
     finishTurn(next, keep, events);
   }
-  return { state: next, events };
-}
-
-// Phase "place" -> puts the picked-up trap on a square (a ring index from trapSquares).
-function placeTrap(state, ring) {
-  if (state.phase !== 'place') throw new Error('Not time to place a trap');
-  if (!trapSquares(state).includes(ring)) throw new Error('You cannot put a trap there');
-  const next = cloneState(state);
-  const color = currentColor(next);
-  next.traps.push({ ring, owner: color });
-  const events = [{ type: 'trapSet', color, ring }];
-  finishTurn(next, state.keepTurn, events);
   return { state: next, events };
 }
 
@@ -377,13 +333,11 @@ function cloneState(state) {
     shield,
     boost,
     powerUps: state.powerUps.map((p) => ({ ...p })),
-    traps: state.traps.map((t) => ({ ...t })),
-    placing: state.placing ? { ...state.placing } : null,
     moves: state.moves.map((m) => ({ ...m })),
   };
 }
 
 module.exports = {
   YARD, HOME, LAST_TRACK, DIE, SPAWN_WEIGHTS,
-  createGame, currentColor, rollDie, legalMoves, roll, move, placeTrap, trapSquares, maybeSpawn, ringIndex,
+  createGame, currentColor, rollDie, legalMoves, roll, move, maybeSpawn, ringIndex,
 };

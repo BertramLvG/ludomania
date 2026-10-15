@@ -1,13 +1,13 @@
 'use strict';
 
 const { GLOBES, TRACK_LENGTH } = require('./board');
-const { move, currentColor, ringIndex, trapSquares, HOME, LAST_TRACK } = require('./engine');
+const { move, currentColor, ringIndex, HOME, LAST_TRACK } = require('./engine');
 
 // Distances an opponent can cover with one number roll.
 const REACH = [1, 2, 4, 6];
 
 // What picking up each power-up is worth to the bot.
-const PICKUP_VALUE = { boost: 30, trap: 22, reroll: 20, shield: 18 };
+const PICKUP_VALUE = { boost: 30, reroll: 20, shield: 18 };
 
 const onTrack = (p) => p >= 0 && p <= LAST_TRACK;
 
@@ -41,7 +41,7 @@ function score(state, choice, rng) {
 
   for (const ev of result.events) {
     if (ev.type === 'capture' && ev.by === color) s += 100 + 2 * lostProgress(state, ev);
-    if (ev.type === 'captured' || ev.type === 'trapped') s -= 150; // landed on a defended square, a globe, a shield or a trap
+    if (ev.type === 'captured') s -= 150; // landed on a defended square, a globe or a shield
     if (ev.type === 'win') s += 1000;
     if (ev.type === 'pickup' && ev.color === color) s += PICKUP_VALUE[ev.kind] || 0;
   }
@@ -79,28 +79,4 @@ function chooseMove(state, rng = state.rng || Math.random) {
   return best;
 }
 
-// Where to put a trap: on the square an opponent token is most likely to land on, i.e. just ahead of the most
-// opponent tokens (within one or two rolls). Ties and quiet boards are settled at random.
-function chooseTrapSquare(state, rng = state.rng || Math.random) {
-  const color = currentColor(state);
-  const squares = trapSquares(state);
-  const opponents = [];
-  for (const other of state.colors) {
-    if (other === color) continue;
-    state.tokens[other].forEach((p) => { if (onTrack(p)) opponents.push(ringIndex(other, p)); });
-  }
-  let best = squares[0];
-  let bestScore = -Infinity;
-  for (const ring of squares) {
-    let s = rng();
-    for (const o of opponents) {
-      const gap = (ring - o + TRACK_LENGTH) % TRACK_LENGTH;
-      if (REACH.includes(gap)) s += 3;
-      else if (gap > 0 && gap <= 12) s += 1;
-    }
-    if (s > bestScore) { best = ring; bestScore = s; }
-  }
-  return best;
-}
-
-module.exports = { chooseMove, chooseTrapSquare, threats };
+module.exports = { chooseMove, threats };

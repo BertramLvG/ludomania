@@ -104,6 +104,7 @@
   $('startAsIs').onclick = () => { $('startDialog').close(); send({ type: 'start' }); };
   $('startCancel').onclick = () => $('startDialog').close();
   // "vs Bots" opens the same lobby as Host, with three bots already seated, so the settings can be chosen first.
+  // soloPending is true from the click until the three bots are seated and the lobby is shown.
   let soloPending = false;
   $('solo').onclick = () => {
     setError('');
@@ -120,7 +121,7 @@
     ws = null; me = null; roomCode = null;
     log.length = 0;
     resetRolls();
-    game = null; selected = null; winnerSeen = false;
+    game = null; selected = null; winnerSeen = false; soloPending = false;
     setError('');
   }
 
@@ -268,8 +269,6 @@
       case 'bot': return who(ev.color) + ' did not come back in time. A bot now plays that seat';
       case 'spawn': return 'A ' + BoardView.POWER_UPS[ev.kind].name.toLowerCase() + ' appeared on the board';
       case 'pickup': return who(ev.color) + ' picked up a ' + BoardView.POWER_UPS[ev.kind].name.toLowerCase();
-      case 'trapSet': return who(ev.color) + ' set a trap';
-      case 'trapped': return who(ev.color) + "'s token hit " + who(ev.owner) + "'s trap and went home";
       case 'shieldEnd': return who(ev.color) + "'s shield ran out";
       default: return null;
     }
@@ -279,19 +278,25 @@
     switch (msg.type) {
       case 'error':
         setError(msg.message);
+        soloPending = false;
         if (msg.message === 'Not logged in') { resetGame(); showAuth(); }
         if (msg.message === 'Cannot rejoin this game') { clearSession(); clearTimeout(retryTimer); show('menu'); loadProfile(); }
         break;
       case 'joined':
         roomCode = msg.code;
         $('roomCode').textContent = msg.code;
-        show('lobby');
+        // The lobby is not shown yet: it appears with the first lobby message, so old content never flashes by.
+        if (soloPending) for (let i = 0; i < 3; i++) send({ type: 'addBot' });
+        break;
+      case 'lobby':
+        renderLobby(msg);
         if (soloPending) {
-          soloPending = false;
-          for (let i = 0; i < 3; i++) send({ type: 'addBot' });
+          // vs Bots: wait until the three bots are seated, so the room code is never shown
+          if (msg.bots >= 3) { soloPending = false; show('lobby'); }
+        } else if (currentSection !== 'lobby' && currentSection !== 'game') {
+          show('lobby');
         }
         break;
-      case 'lobby': renderLobby(msg); break;
       case 'started':
         me = msg.you;
         winnerSeen = false;
@@ -584,8 +589,7 @@
     if (m.boosted && m.kind === 'step') text += ' (doubled by your speed boost)';
     if (m.pickup) text += ' and picks up a ' + BoardView.POWER_UPS[m.pickup].name.toLowerCase();
     if (m.captures > 0) text += ' and sends ' + (m.captures > 1 ? m.captures + ' tokens' : 'a token') + ' home';
-    if (m.trapped) text += '. Careful: it would hit a trap and be sent home';
-    else if (m.sentHome) text += '. Careful: it would be sent home (defended square, globe or shield)';
+    if (m.sentHome) text += '. Careful: it would be sent home (defended square, globe or shield)';
     return text + '.';
   }
 
@@ -602,16 +606,13 @@
     btn.disabled = choosing ? !move : !(myTurn && s.phase === 'roll');
 
     if (s.winner) $('status').textContent = '';
-    else if (s.phase === 'place') {
-      $('status').textContent = myTurn ? 'Pick a tile for your trap' : s.names[color] + ' is placing a trap';
-    } else if (!myTurn) $('status').textContent = s.names[color] + "'s turn";
+    else if (!myTurn) $('status').textContent = s.names[color] + "'s turn";
     else if (s.phase === 'roll') $('status').textContent = 'Your turn - tap Roll';
     else if (!move) $('status').textContent = 'Pick a token to see where it goes';
     else $('status').textContent = previewText(move);
 
     BoardView.render(s, movable, me, pickToken,
-      move ? { color: me, to: move.to, via: move.via } : null, selected, confirmMove,
-      { events, onPlace: (ring) => send({ type: 'placeTrap', ring }) });
+      move ? { color: me, to: move.to, via: move.via } : null, selected, confirmMove, { events });
   }
 
   // Plays the previewed move. Used by the Confirm button and by clicking the highlighted square.
