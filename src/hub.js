@@ -3,6 +3,7 @@
 const crypto = require('node:crypto');
 const { createGame, currentColor, roll, move } = require('./engine');
 const { chooseMove } = require('./bot');
+const settings = require('./settings');
 
 const CODE_LETTERS = 'ABCDEFGHJKLMNPQRSTUVWXYZ'; // no I or O
 const SEATS = { 2: ['red', 'yellow'], 3: ['red', 'green', 'yellow'], 4: ['red', 'green', 'yellow', 'blue'] };
@@ -24,6 +25,7 @@ function publicState(room) {
   return {
     colors: s.colors, tokens: s.tokens, turn: s.turn, phase: s.phase,
     face: s.face, moves: s.moves, winner: s.winner, bots: [...room.bots], away, names,
+    settings: room.settings,
   };
 }
 
@@ -57,6 +59,7 @@ function createHub({
     type: 'lobby', code: room.code,
     players: room.players.map((p) => ({ name: p.name, host: p === room.host })),
     bots: room.botCount,
+    settings: room.settings,
   });
   const stateMsg = (room, events = []) => ({ type: 'state', state: publicState(room), events });
 
@@ -136,6 +139,7 @@ function createHub({
         code: newCode(), players: [], host: null, state: null,
         botCount: 0, bots: new Set(), botNames: {}, botTimer: null,
         rolls: {}, // userId -> dice that player rolled in this game (bots are not counted)
+        settings: settings.defaults(), // the host changes these in the lobby
       };
       rooms.set(room.code, room);
       join(conn, room, msg.name);
@@ -145,6 +149,14 @@ function createHub({
       const room = rooms.get(String(msg.code || '').toUpperCase());
       if (!room) return fail(conn, 'No room with that code');
       join(conn, room, msg.name);
+    },
+
+    // The host changes game settings in the lobby. Only the keys sent are changed, and every value is checked.
+    settings(conn, msg) {
+      const room = lobbyHost(conn);
+      if (!room) return;
+      room.settings = settings.normalize(msg.settings, room.settings);
+      broadcast(room, lobbyMsg(room));
     },
 
     addBot(conn) {

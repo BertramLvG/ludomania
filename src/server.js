@@ -14,6 +14,10 @@ try { process.loadEnvFile(); } catch { /* no .env file */ }
 
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
 const PORT = Number(process.env.PORT) || 3000;
+const SHARED_FILES = {
+  '/board.js': path.join(__dirname, 'board.js'),
+  '/settings.js': path.join(__dirname, 'settings.js'),
+};
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml' };
 
 async function main() {
@@ -29,10 +33,10 @@ async function main() {
   const server = http.createServer(async (req, res) => {
     if (await api.handle(req, res)) return;
     const urlPath = new URL(req.url, 'http://localhost').pathname;
-    const file = urlPath === '/board.js'
-      ? path.join(__dirname, 'board.js') // shared with the browser client
-      : path.normalize(path.join(PUBLIC_DIR, urlPath === '/' ? 'index.html' : urlPath));
-    if (file !== path.join(__dirname, 'board.js') && !file.startsWith(PUBLIC_DIR + path.sep)) {
+    // these files are used by both the server and the browser, so they live in src/
+    const shared = SHARED_FILES[urlPath];
+    const file = shared || path.normalize(path.join(PUBLIC_DIR, urlPath === '/' ? 'index.html' : urlPath));
+    if (!shared && !file.startsWith(PUBLIC_DIR + path.sep)) {
       res.writeHead(403).end();
       return;
     }

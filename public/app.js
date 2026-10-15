@@ -298,7 +298,93 @@
     }
   }
 
+  /* ---------- Game settings (host chooses, everyone sees) ---------- */
+  // The controls are drawn from GameSettings.DEFINITIONS (src/settings.js), so a new setting needs no change here.
+  let settingsMode = null;   // 'host' (controls) or 'view' (read-only summary): rebuilt when it changes
+  const settingEls = {};     // key -> { row, input, output }
+
+  function sendSetting(key, value) { send({ type: 'settings', settings: { [key]: value } }); }
+
+  function buildSettingControls() {
+    const box = $('settingsControls');
+    box.textContent = '';
+    GameSettings.DEFINITIONS.forEach((d) => {
+      const row = document.createElement('div');
+      row.className = 'setting-row' + (d.type === 'slider' ? ' stacked' : '');
+      const id = 'setting-' + d.key;
+      if (d.type === 'toggle') {
+        const text = document.createElement('div');
+        text.className = 'setting-text';
+        const b = document.createElement('b');
+        b.id = id + '-label';
+        b.textContent = d.label;
+        text.appendChild(b);
+        if (d.hint) { const s = document.createElement('small'); s.textContent = d.hint; text.appendChild(s); }
+        const sw = document.createElement('button');
+        sw.type = 'button';
+        sw.className = 'toggle';
+        sw.setAttribute('role', 'switch');
+        sw.setAttribute('aria-labelledby', id + '-label');
+        sw.innerHTML = '<span class="dot"></span>';
+        sw.onclick = () => sendSetting(d.key, sw.getAttribute('aria-checked') !== 'true');
+        row.append(text, sw);
+        settingEls[d.key] = { row, input: sw };
+      } else {
+        const head = document.createElement('div');
+        head.className = 'setting-head';
+        const label = document.createElement('label');
+        label.htmlFor = id;
+        label.textContent = d.label;
+        const output = document.createElement('output');
+        output.htmlFor = id;
+        head.append(label, output);
+        const input = document.createElement('input');
+        input.type = 'range';
+        input.id = id;
+        input.min = d.min; input.max = d.max; input.step = d.step;
+        input.oninput = () => { output.textContent = input.value; };           // follows the thumb while dragging
+        input.onchange = () => sendSetting(d.key, Number(input.value));       // sent when released
+        const ends = document.createElement('div');
+        ends.className = 'setting-ends';
+        ends.innerHTML = '<span></span><span></span>';
+        ends.children[0].textContent = d.low || String(d.min);
+        ends.children[1].textContent = d.high || String(d.max);
+        row.append(head, input, ends);
+        settingEls[d.key] = { row, input, output };
+      }
+      box.appendChild(row);
+    });
+  }
+
+  function renderSettings(values, isHost) {
+    const mode = isHost ? 'host' : 'view';
+    const box = $('settingsControls');
+    if (mode === 'view') {
+      settingsMode = mode;
+      box.textContent = '';
+      const line = document.createElement('div');
+      line.className = 'setting-view';
+      line.textContent = values.powerUps
+        ? 'Power-ups: on · spawn rate ' + values.powerUpRate + ' of 10 · up to ' + values.powerUpMax + ' on the board'
+        : 'Power-ups: off';
+      box.appendChild(line);
+      return;
+    }
+    if (settingsMode !== mode) { buildSettingControls(); settingsMode = mode; }
+    GameSettings.DEFINITIONS.forEach((d) => {
+      const el = settingEls[d.key];
+      if (d.type === 'toggle') el.input.setAttribute('aria-checked', String(values[d.key]));
+      else if (document.activeElement !== el.input) { el.input.value = values[d.key]; el.output.textContent = values[d.key]; }
+      if (d.requires) {
+        const on = Boolean(values[d.requires]);
+        el.input.disabled = !on;
+        el.row.classList.toggle('off', !on);
+      }
+    });
+  }
+
   function renderLobby(msg) {
+    renderSettings(msg.settings, msg.youHost);
     $('roomCode').textContent = msg.code;
     $('lobbyPlayers').textContent = '';
     const chip = (text) => {

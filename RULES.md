@@ -37,6 +37,10 @@ If no legal move exists, the turn is skipped.
 - First player with all 4 tokens home wins.
 - Captures and reaching home do not give extra rolls.
 
+## Game settings
+The host chooses settings in the lobby before the game starts, and the other players can see them. They are defined in `src/settings.js`, and the lobby draws its controls from that list.
+- **Power-ups** (on/off), **spawn rate** (1-10) and **most on the board at once** (1-8). The settings are saved and sent with the game, but the power-ups themselves are not built yet.
+
 ## Disconnects
 - A player who loses connection (or reloads the page) can rejoin their seat within 60 seconds. The game waits for them if it is their turn.
 - After 60 seconds a bot plays that seat for the rest of the game, and the player can no longer rejoin. Bots also fill seats when the host adds them in the lobby, so a game can be played solo (1 human plus up to 3 bots). A bot scores each legal move: it values captures, leaving the yard, reaching home, safe globes and escaping opponents in range, and avoids landing on defended squares.
